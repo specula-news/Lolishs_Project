@@ -1,0 +1,71 @@
+package app.lumen.player.util
+
+import android.content.Context
+import android.graphics.Typeface
+import android.view.View
+import android.widget.TextView
+import androidx.core.content.res.ResourcesCompat
+import app.lumen.player.R
+
+/** Layout + typography helpers shared by all screens. */
+object Ui {
+	private var display: Typeface? = null
+	private var medium: Typeface? = null
+	private var bold: Typeface? = null
+
+	fun dp(context: Context, value: Float): Int = (value * context.resources.displayMetrics.density + 0.5f).toInt()
+	fun dp(context: Context, value: Int): Int = dp(context, value.toFloat())
+
+	/** Fraunces Black Italic, the Li'Server heading face. */
+	fun display(context: Context): Typeface =
+		display ?: (runCatching { ResourcesCompat.getFont(context, R.font.fraunces_black_italic) }.getOrNull()
+			?: Typeface.create(Typeface.SERIF, Typeface.BOLD_ITALIC)).also { display = it }
+
+	fun medium(context: Context): Typeface =
+		medium ?: (runCatching { ResourcesCompat.getFont(context, R.font.dmsans_medium) }.getOrNull()
+			?: Typeface.create("sans-serif-medium", Typeface.NORMAL)).also { medium = it }
+
+	fun bold(context: Context): Typeface =
+		bold ?: (runCatching { ResourcesCompat.getFont(context, R.font.dmsans_bold) }.getOrNull()
+			?: Typeface.DEFAULT_BOLD).also { bold = it }
+
+	fun TextView.displayFont(): TextView = apply { typeface = display(context) }
+
+	/** Poster card width in dp for the chosen size. */
+	fun posterWidthDp(prefs: Prefs): Int = when (prefs.posterSize) {
+		0 -> 112
+		2 -> 176
+		3 -> 214
+		else -> 142
+	}
+
+	/** Landscape (16:9) card width in dp. */
+	fun thumbWidthDp(prefs: Prefs): Int = when (prefs.thumbSize) {
+		0 -> 220
+		2 -> 340
+		else -> 272
+	}
+
+	/** Sidebar / button icon size in dp. */
+	fun iconDp(prefs: Prefs): Int = when (prefs.iconSize) {
+		0 -> 20
+		2 -> 30
+		else -> 24
+	}
+
+	/** Round player control button size in dp. */
+	fun playerButtonDp(prefs: Prefs): Int = when (prefs.iconSize) {
+		0 -> 42
+		2 -> 60
+		else -> 50
+	}
+
+	/** Grow a little when focused, like the Li'Server cards. */
+	fun focusScale(view: View, scale: Float = 1.06f, onFocus: ((Boolean) -> Unit)? = null) {
+		view.setOnFocusChangeListener { v, hasFocus ->
+			v.animate().scaleX(if (hasFocus) scale else 1f).scaleY(if (hasFocus) scale else 1f).setDuration(140L).start()
+			v.elevation = if (hasFocus) dp(v.context, 8).toFloat() else 0f
+			onFocus?.invoke(hasFocus)
+		}
+	}
+}
