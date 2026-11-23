@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+	<dimen name="icon_button">48dp</dimen>
+	<dimen name="overscan_h">48dp</dimen>
+	<dimen name="overscan_v">27dp</dimen>
+	<dimen name="panel_width">440dp</dimen>
+</resources>
