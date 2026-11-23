@@ -66,7 +66,7 @@
 		android:background="@drawable/bg_hud"
 		android:importantForAccessibility="no"
 		android:padding="24dp"
-		android:src="@drawable/ic_pause" />
+		android:src="@drawable/ic_pl_pause" />
 
 	<!-- Stats for nerds -->
 	<TextView
@@ -212,23 +212,26 @@
 			<ImageButton
 				android:id="@+id/btn_play"
 				style="@style/Lumen.IconButton"
+				android:background="@drawable/bg_player_button_primary"
 				android:contentDescription="@string/pause"
 				android:nextFocusUp="@id/timeline"
-				android:src="@drawable/ic_pause" />
+				android:src="@drawable/ic_pl_pause" />
 
 			<ImageButton
 				android:id="@+id/btn_rewind"
 				style="@style/Lumen.IconButton"
+				android:background="@drawable/bg_player_button"
 				android:contentDescription="@string/skip_back"
 				android:nextFocusUp="@id/timeline"
-				android:src="@drawable/ic_rewind" />
+				android:src="@drawable/ic_pl_rewind" />
 
 			<ImageButton
 				android:id="@+id/btn_forward"
 				style="@style/Lumen.IconButton"
+				android:background="@drawable/bg_player_button"
 				android:contentDescription="@string/skip_forward"
 				android:nextFocusUp="@id/timeline"
-				android:src="@drawable/ic_forward" />
+				android:src="@drawable/ic_pl_forward" />
 
 			<View
 				android:layout_width="1dp"
@@ -240,52 +243,59 @@
 			<ImageButton
 				android:id="@+id/btn_subtitles"
 				style="@style/Lumen.IconButton"
+				android:background="@drawable/bg_player_button"
 				android:contentDescription="@string/subtitles"
 				android:nextFocusUp="@id/timeline"
-				android:src="@drawable/ic_subtitles" />
+				android:src="@drawable/ic_pl_subtitles" />
 
 			<ImageButton
 				android:id="@+id/btn_audio"
 				style="@style/Lumen.IconButton"
+				android:background="@drawable/bg_player_button"
 				android:contentDescription="@string/audio"
 				android:nextFocusUp="@id/timeline"
-				android:src="@drawable/ic_audio" />
+				android:src="@drawable/ic_pl_audio" />
 
 			<ImageButton
 				android:id="@+id/btn_sync"
 				style="@style/Lumen.IconButton"
+				android:background="@drawable/bg_player_button"
 				android:contentDescription="@string/sync"
 				android:nextFocusUp="@id/timeline"
-				android:src="@drawable/ic_sync" />
+				android:src="@drawable/ic_pl_sync" />
 
 			<ImageButton
 				android:id="@+id/btn_player"
 				style="@style/Lumen.IconButton"
+				android:background="@drawable/bg_player_button"
 				android:contentDescription="@string/player"
 				android:nextFocusUp="@id/timeline"
-				android:src="@drawable/ic_swap" />
+				android:src="@drawable/ic_pl_switch" />
 
 			<ImageButton
 				android:id="@+id/btn_chapters"
 				style="@style/Lumen.IconButton"
+				android:background="@drawable/bg_player_button"
 				android:contentDescription="@string/chapters"
 				android:nextFocusUp="@id/timeline"
-				android:src="@drawable/ic_chapters"
+				android:src="@drawable/ic_pl_chapters"
 				android:visibility="gone" />
 
 			<ImageButton
 				android:id="@+id/btn_settings"
 				style="@style/Lumen.IconButton"
+				android:background="@drawable/bg_player_button"
 				android:contentDescription="@string/settings"
 				android:nextFocusUp="@id/timeline"
-				android:src="@drawable/ic_tune" />
+				android:src="@drawable/ic_pl_settings" />
 
 			<ImageButton
 				android:id="@+id/btn_info"
 				style="@style/Lumen.IconButton"
+				android:background="@drawable/bg_player_button"
 				android:contentDescription="@string/info"
 				android:nextFocusUp="@id/timeline"
-				android:src="@drawable/ic_info" />
+				android:src="@drawable/ic_pl_info" />
 
 			<TextView
 				android:id="@+id/focus_label"

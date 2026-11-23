@@ -121,6 +121,9 @@ class PlayerActivity : ComponentActivity(), EngineListener, TimelineView.Listene
 	private var firstFrameAt = 0L
 	private var stutterSuppressedUntil = 0L
 	private var stutterOffForItem = false
+	private var lastSeekAt = 0L
+	/** True between choosing another player and its first frame: keep the menus out of the way. */
+	private var switching = false
 	private var rememberCandidate: PlayerMode? = null
 	private var goodPlaybackMs = 0L
 	private var upNextJob: kotlinx.coroutines.Job? = null
@@ -353,9 +356,11 @@ class PlayerActivity : ComponentActivity(), EngineListener, TimelineView.Listene
 			R.id.btn_sync, R.id.btn_player, R.id.btn_chapters, R.id.btn_settings, R.id.btn_info)
 		val buttonSize = Ui.dp(this, Ui.playerButtonDp(prefs))
 		buttons.forEach { id ->
+			// Play / pause is the main control, so it's a little bigger than the rest.
+			val size = if (id == R.id.btn_play) (buttonSize * 1.22f).toInt() else buttonSize
 			findViewById<View>(id).layoutParams = findViewById<View>(id).layoutParams.apply {
-				width = buttonSize
-				height = buttonSize
+				width = size
+				height = size
 			}
 			findViewById<View>(id).setOnFocusChangeListener { view, hasFocus ->
 				if (hasFocus) focusLabel.text = view.contentDescription
@@ -520,21 +525,38 @@ class PlayerActivity : ComponentActivity(), EngineListener, TimelineView.Listene
 	/** Switch "player" at the current position. Works from the Player panel and the stutter prompt. */
 	private fun switchMode(newMode: PlayerMode, fromPrompt: Boolean = false) {
 		val position = currentPositionForResult()
-		triedModes += mode
+		val previous = mode
+		triedModes += previous
 		hidePrompt()
+		// Clean screen while switching: no panel, no bars, just the loading card.
+		closePanel(showBars = false)
+		hideControls()
+		cancelScrub()
+		switching = true
+		engine?.pause()
+		loadingTitle.text = "Switching to ${newMode.label}…"
+		loading.visibility = View.VISIBLE
+		stutter.reset()
+		stutterSuppressedUntil = SystemClock.elapsedRealtime() + 20_000L
 		if (isInternal) {
+			val oldSessionId = reporter?.playSessionId
 			reporter?.stop(position)
 			reporter = null
-			if (fromPrompt || newMode != mode) rememberCandidate = newMode
+			if (fromPrompt || newMode != previous) rememberCandidate = newMode
 			goodPlaybackMs = 0L
-			lifecycleScope.launch { startMode(newMode, position) }
+			lifecycleScope.launch {
+				// Stop the old server transcode first so the new one gets the server's full attention.
+				val currentSession = session
+				if (previous.isTranscode && oldSessionId != null && currentSession != null) {
+					withTimeoutOrNull(2_500L) { runCatching { api.stopEncoding(currentSession, oldSessionId) } }
+				}
+				startMode(newMode, position)
+			}
 		} else {
 			mode = newMode
 			startEngine(if (newMode.engine == PlayerMode.Engine.VLC) EngineKind.VLC else EngineKind.EXO, position)
 			engineLabel.text = newMode.label
 		}
-		stutterSuppressedUntil = SystemClock.elapsedRealtime() + 20_000L
-		showToast("Switched to ${newMode.label}")
 	}
 
 	/** Modes that make sense right now: transcoding needs a signed-in Jellyfin item. */
@@ -609,16 +631,28 @@ class PlayerActivity : ComponentActivity(), EngineListener, TimelineView.Listene
 	// Stutter detection ------------------------------------------------------------------------
 
 	override fun onEngineRebuffer() {
-		if (!firstFrameShown || scrubbing) return
-		stutter.rebuffer(SystemClock.elapsedRealtime())
+		val now = SystemClock.elapsedRealtime()
+		if (!firstFrameShown || scrubbing || now - lastSeekAt < 4_000L) return
+		stutter.rebuffer(now)
 		checkStutter()
 	}
 
-	override fun onEngineDroppedFrames(count: Int, elapsedMs: Long) {
+	/** Dropped frames are sampled from the engine's counters in [tick] instead (works for VLC too). */
+	override fun onEngineDroppedFrames(count: Int, elapsedMs: Long) = Unit
+
+	/** Called once a second while playing. */
+	private fun sampleStutter(current: PlayerEngine) {
 		val now = SystemClock.elapsedRealtime()
-		if (!firstFrameShown || now - firstFrameAt < 8_000L) return
-		stutter.dropped(now, count, elapsedMs, prefs.stutterDetection)
-		checkStutter()
+		val settled = firstFrameShown && !switching && !scrubbing && now - lastSeekAt > 4_000L
+		stutter.sample(now, current.frameCounters(), settled && current.isBuffering && current.isPlaying)
+		if (settled && now - firstFrameAt > 8_000L) checkStutter()
+	}
+
+	/** Every seek goes through here so stutter detection ignores the catch-up right after it. */
+	private fun seekEngine(target: Long) {
+		lastSeekAt = SystemClock.elapsedRealtime()
+		stutter.resetFrames()
+		engine?.seekTo(target)
 	}
 
 	private fun checkStutter() {
@@ -646,7 +680,7 @@ class PlayerActivity : ComponentActivity(), EngineListener, TimelineView.Listene
 		promptActions2.removeAllViews()
 		val choices = suggestions.ifEmpty { listOf(PlayerMode.EXO_4).filter { isInternal && it != mode } }
 		choices.forEach { option ->
-			Pills.create(promptActions, option.label, R.drawable.ic_swap).setOnClickListener { switchMode(option, fromPrompt = true) }
+			Pills.create(promptActions, option.label, R.drawable.ic_pl_switch).setOnClickListener { switchMode(option, fromPrompt = true) }
 		}
 		Pills.create(promptActions2, "Keep playing").setOnClickListener {
 			hidePrompt()
@@ -714,7 +748,7 @@ class PlayerActivity : ComponentActivity(), EngineListener, TimelineView.Listene
 			lastReportedPaused = !playing
 			reportProgress(if (playing) "unpause" else "pause")
 		}
-		btnPlay.setImageResource(if (playing) R.drawable.ic_pause else R.drawable.ic_play)
+		btnPlay.setImageResource(if (playing) R.drawable.ic_pl_pause else R.drawable.ic_pl_play)
 		btnPlay.contentDescription = getString(if (playing) R.string.pause else R.string.play)
 		if (btnPlay.isFocused) focusLabel.text = btnPlay.contentDescription
 		if (playing && !current.isBuffering && loading.visibility == View.VISIBLE && !firstFrameShown) {
@@ -768,9 +802,16 @@ class PlayerActivity : ComponentActivity(), EngineListener, TimelineView.Listene
 		firstFrameAt = SystemClock.elapsedRealtime()
 		engine?.let { reporter?.start(it.positionMs) }
 		loading.visibility = View.GONE
+		metadata?.let { loadingTitle.text = it.title }
 		engine?.let { applySyncAndSpeed(it) }
 		refreshBadges()
-		showControls(timeline)
+		if (switching) {
+			// Don't throw the controls (and focus) at the user after a switch.
+			switching = false
+			showToast("Now playing with ${mode.label}")
+		} else {
+			showControls(timeline)
+		}
 	}
 
 	// Ticker ----------------------------------------------------------------------------------------
@@ -783,9 +824,12 @@ class PlayerActivity : ComponentActivity(), EngineListener, TimelineView.Listene
 		if (position > 0) lastKnownPositionMs = position
 		if (duration > 0) lastKnownDurationMs = duration
 
-		timeline.durationMs = duration
-		timeline.positionMs = position
-		timeline.bufferedMs = current.bufferedMs
+		if (firstFrameShown) {
+			// While a new player is still opening it reports 0, which would make the bar jump.
+			timeline.durationMs = duration
+			timeline.positionMs = position
+			timeline.bufferedMs = current.bufferedMs
+		}
 		elapsed.text = Formatters.time(position)
 		remaining.text = if (duration > 0) "−" + Formatters.time(duration - position) else ""
 		buffering.visibility =
@@ -793,6 +837,7 @@ class PlayerActivity : ComponentActivity(), EngineListener, TimelineView.Listene
 
 		if (controlsVisible) updateClock(position, duration)
 		checkSegments(position)
+		if (tickCount % 2 == 0) sampleStutter(current)
 		if (statsView.visibility == View.VISIBLE && tickCount % 2 == 0) updateStats()
 		if (tickCount % 10 == 0) updateResult()
 		if (isInternal) {
@@ -876,7 +921,7 @@ class PlayerActivity : ComponentActivity(), EngineListener, TimelineView.Listene
 		if (segment.type == "Outro" && segmentRunsToEnd(segment)) {
 			if (isInternal) onPlaybackFinished() else finishWithResult(completed = true)
 		} else {
-			engine?.seekTo(segment.endMs)
+			seekEngine(segment.endMs)
 		}
 	}
 
@@ -905,12 +950,12 @@ class PlayerActivity : ComponentActivity(), EngineListener, TimelineView.Listene
 				}
 				KeyEvent.KEYCODE_MEDIA_PLAY -> {
 					engine?.play()
-					flashCenter(R.drawable.ic_play)
+					flashCenter(R.drawable.ic_pl_play)
 					return true
 				}
 				KeyEvent.KEYCODE_MEDIA_PAUSE -> {
 					engine?.pause()
-					flashCenter(R.drawable.ic_pause)
+					flashCenter(R.drawable.ic_pl_pause)
 					showControls(btnPlay)
 					return true
 				}
@@ -1036,11 +1081,11 @@ class PlayerActivity : ComponentActivity(), EngineListener, TimelineView.Listene
 		val current = engine ?: return
 		if (current.isPlaying) {
 			current.pause()
-			flashCenter(R.drawable.ic_pause)
+			flashCenter(R.drawable.ic_pl_pause)
 			showControls(btnPlay)
 		} else {
 			current.play()
-			flashCenter(R.drawable.ic_play)
+			flashCenter(R.drawable.ic_pl_play)
 			bumpHideTimer()
 		}
 	}
@@ -1059,7 +1104,7 @@ class PlayerActivity : ComponentActivity(), EngineListener, TimelineView.Listene
 		val duration = current.durationMs
 		var target = current.positionMs + deltaMs
 		target = if (duration > 0) target.coerceIn(0L, duration - 1_000L) else target.coerceAtLeast(0L)
-		current.seekTo(target)
+		seekEngine(target)
 		timeline.positionMs = target
 		if (!controlsVisible) showControls(timeline)
 	}
@@ -1077,7 +1122,7 @@ class PlayerActivity : ComponentActivity(), EngineListener, TimelineView.Listene
 		} else {
 			chapters.lastOrNull { it.startMs < position - 3_000L }?.startMs ?: 0L
 		} ?: return
-		current.seekTo(target)
+		seekEngine(target)
 		showControls(timeline)
 	}
 
@@ -1114,7 +1159,7 @@ class PlayerActivity : ComponentActivity(), EngineListener, TimelineView.Listene
 		if (!scrubbing) return
 		handler.removeCallbacks(commitScrubRunnable)
 		scrubbing = false
-		engine?.seekTo(scrubTargetMs)
+		seekEngine(scrubTargetMs)
 		timeline.positionMs = scrubTargetMs
 		timeline.scrubPositionMs = null
 		handler.postDelayed({ reportProgress() }, 1_500L)
@@ -1195,15 +1240,20 @@ class PlayerActivity : ComponentActivity(), EngineListener, TimelineView.Listene
 		panelBuilder.initialFocus()?.requestFocus()
 	}
 
-	private fun closePanel() {
+	private fun closePanel(showBars: Boolean = true) {
 		val type = panelType ?: return
 		panelType = null
 		panel.animate().translationX(resources.getDimension(R.dimen.panel_width)).setDuration(200L).withEndAction {
 			if (panelType == null) panel.visibility = View.GONE
 		}.start()
 		setControlsFocusable(true)
-		val returnFocus = panelReturnFocus?.takeIf { isInside(it, bottomBar) && it.visibility == View.VISIBLE }
-		showControls(returnFocus ?: buttonFor(type).takeIf { it.visibility == View.VISIBLE } ?: btnPlay)
+		if (showBars) {
+			val returnFocus = panelReturnFocus?.takeIf { isInside(it, bottomBar) && it.visibility == View.VISIBLE }
+			showControls(returnFocus ?: buttonFor(type).takeIf { it.visibility == View.VISIBLE } ?: btnPlay)
+		} else {
+			// Park focus on the (hidden) timeline so the next key press behaves normally.
+			timeline.requestFocus()
+		}
 		saveDelays()
 	}
 
@@ -1310,8 +1360,7 @@ class PlayerActivity : ComponentActivity(), EngineListener, TimelineView.Listene
 				availableModes().forEach { option ->
 					val tried = option in triedModes && option != mode
 					b.option(option.label, option.hint + if (tried) "  ·  tried" else "", option == mode) {
-						closePanel()
-						if (option != mode) switchMode(option)
+						if (option != mode) switchMode(option) else closePanel()
 					}
 				}
 				b.header("Stutter")
@@ -1367,7 +1416,7 @@ class PlayerActivity : ComponentActivity(), EngineListener, TimelineView.Listene
 				val active = chapters.lastOrNull { it.startMs <= position }
 				chapters.forEachIndexed { index, chapter ->
 					b.option(chapter.name.ifBlank { "Chapter ${index + 1}" }, Formatters.time(chapter.startMs), chapter == active) {
-						current.seekTo(chapter.startMs)
+						seekEngine(chapter.startMs)
 						closePanel()
 					}
 				}
@@ -1456,6 +1505,8 @@ class PlayerActivity : ComponentActivity(), EngineListener, TimelineView.Listene
 		lines += "Sync" to "subs ${Formatters.delay(subtitleDelayMs)} · audio ${Formatters.delay(audioDelayMs)}"
 		currentDisplayLine()?.let { lines += "Display" to it }
 		metadata?.let { lines += "Jellyfin" to "linked · ${it.chapters.size} chapters · ${it.segments.size} segments" }
+		val sensitivity = listOf("off", "normal", "sensitive")[prefs.stutterDetection.coerceIn(0, 2)]
+		lines += "Stutter" to "$sensitivity · ${stutter.lastSummary.ifBlank { "measuring…" }}"
 		statsView.text = lines.joinToString("\n") { (key, value) -> key.padEnd(14) + value }
 		statsView.visibility = View.VISIBLE
 	}

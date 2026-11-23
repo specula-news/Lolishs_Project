@@ -137,6 +137,16 @@ class Prefs(context: Context) {
 		get() = int("ui_sidebar_mode", 2)
 		set(value) = putInt("ui_sidebar_mode", value)
 
+	/** Sidebar item keys in the user's order (hold OK on an item → Move). Empty = default order. */
+	var navOrder: List<String>
+		get() = str("nav_order")?.split('\n')?.filter { it.isNotBlank() } ?: emptyList()
+		set(value) = putStr("nav_order", value.joinToString("\n"))
+
+	/** Sidebar items the user hid. */
+	var navHidden: Set<String>
+		get() = sp.getStringSet("nav_hidden", emptySet())?.toSet() ?: emptySet()
+		set(value) = sp.edit { putStringSet("nav_hidden", value.toSet()) }
+
 	var showCardTitles: Boolean
 		get() = bool("ui_card_titles", true)
 		set(value) = putBool("ui_card_titles", value)
@@ -261,6 +271,7 @@ class Prefs(context: Context) {
 
 	/** Saves (or refreshes) a profile and makes it the active user. */
 	fun saveAccount(account: Account) {
+		rememberUser(account.serverUrl, account.userName)
 		val others = accounts.filterNot { it.sameUser(account) }
 		putStr("accounts", Account.toJson(others + account))
 		activate(account)
@@ -279,6 +290,20 @@ class Prefs(context: Context) {
 	fun removeAccount(account: Account) {
 		putStr("accounts", Account.toJson(accounts.filterNot { it.sameUser(account) }))
 		if (activeAccount?.sameUser(account) == true || userId == account.userId) unlink()
+	}
+
+	/** Usernames that signed in on this TV before (per server), shown on the sign-in screen. */
+	fun recentUsers(baseUrl: String): List<String> {
+		val prefix = baseUrl.trimEnd('/') + "|"
+		return (sp.getStringSet("recent_users", emptySet()) ?: emptySet())
+			.filter { it.startsWith(prefix) }.map { it.removePrefix(prefix) }.filter { it.isNotBlank() }.sorted()
+	}
+
+	fun rememberUser(baseUrl: String, userName: String) {
+		val all = (sp.getStringSet("recent_users", emptySet()) ?: emptySet()).toMutableSet()
+		all.removeAll { it.equals(baseUrl.trimEnd('/') + "|" + userName, ignoreCase = true) }
+		all += baseUrl.trimEnd('/') + "|" + userName
+		sp.edit { putStringSet("recent_users", all) }
 	}
 
 	/** Key of the profile used last, to pre-select it in "Who's watching?". */

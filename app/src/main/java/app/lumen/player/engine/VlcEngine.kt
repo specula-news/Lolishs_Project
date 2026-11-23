@@ -43,7 +43,7 @@ class VlcEngine(
 	init {
 		val options = arrayListOf(
 			"--audio-time-stretch",
-			"--network-caching=3000",
+			"--network-caching=2000",
 			"--file-caching=1500",
 			"--http-reconnect",
 			"--freetype-rel-fontsize=${fontSizeFor(prefs.subtitleScale)}",
@@ -55,7 +55,7 @@ class VlcEngine(
 		if (prefs.subtitleMode == 1) {
 			prefs.preferredSubtitleLanguage.takeIf { it.isNotBlank() }?.let { options += "--sub-language=$it" }
 		}
-		libVlc = LibVLC(context, options)
+		libVlc = sharedLibVlc(context, options)
 		player = MediaPlayer(libVlc)
 		player.setAudioDigitalOutputEnabled(prefs.vlcPassthrough)
 		player.setEventListener(object : MediaPlayer.EventListener {
@@ -69,7 +69,11 @@ class VlcEngine(
 	private fun fontSizeFor(scale: Float): Int = (16f / scale.coerceIn(0.5f, 3f)).toInt().coerceIn(6, 30)
 
 	override fun attach(container: ViewGroup) {
-		val videoLayout = VLCVideoLayout(context)
+		val videoLayout = VLCVideoLayout(context).apply {
+			// Never let the video surface steal D-pad focus from the menus.
+			isFocusable = false
+			descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
+		}
 		container.addView(videoLayout, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
 		player.attachViews(videoLayout, null, true, false)
 		player.videoScale = MediaPlayer.ScaleType.SURFACE_BEST_FIT
@@ -255,13 +259,53 @@ class VlcEngine(
 		return out
 	}
 
+	/** VLC's media statistics: lost (late/dropped) and displayed pictures. Read by reflection to stay version-proof. */
+	override fun frameCounters(): FrameCounters? {
+		val media = player.media ?: return null
+		return try {
+			val stats: Any = media.stats ?: return null
+			val lost = stats.javaClass.getField("lostPictures").getInt(stats)
+			val shown = stats.javaClass.getField("displayedPictures").getInt(stats)
+			FrameCounters(lost.toLong(), shown.toLong())
+		} catch (_: Throwable) {
+			null
+		} finally {
+			media.release()
+		}
+	}
+
 	override fun release() {
+		// Detach the surface right away (main thread), then stop + free VLC in the background:
+		// stop() can block for seconds on a network stream, which made switching players feel stuck.
 		runCatching {
 			player.setEventListener(null)
-			player.stop()
 			player.detachViews()
-			player.release()
-			libVlc.release()
-		}.onFailure { Log.w("VlcEngine", "Release failed", it) }
+		}.onFailure { Log.w("VlcEngine", "Detach failed", it) }
+		val vlcPlayer = player
+		val instance = libVlc
+		Thread({
+			runCatching {
+				vlcPlayer.stop()
+				vlcPlayer.release()
+				// The LibVLC instance is shared between engines; only free one that was replaced.
+				synchronized(VlcEngine) { if (instance !== shared) instance.release() }
+			}.onFailure { Log.w("VlcEngine", "Release failed", it) }
+		}, "vlc-release").start()
+	}
+
+	companion object {
+		@Volatile private var shared: LibVLC? = null
+		private var sharedOptions: List<String> = emptyList()
+
+		/** Creating LibVLC loads every module (slow), so keep one instance while the options stay the same. */
+		private fun sharedLibVlc(context: Context, options: ArrayList<String>): LibVLC = synchronized(VlcEngine) {
+			val current = shared
+			if (current != null && sharedOptions == options) return current
+			val created = LibVLC(context.applicationContext, options)
+			shared = created
+			sharedOptions = ArrayList(options)
+			// The previous instance is released by its engine's release thread once its player is gone.
+			created
+		}
 	}
 }

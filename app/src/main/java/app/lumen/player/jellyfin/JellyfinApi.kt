@@ -476,6 +476,14 @@ class JellyfinApi(private val prefs: Prefs) {
 		return TranscodeInfo(full, playSessionId, normalizeId(source.str("Id")))
 	}
 
+	/** Ends a server transcode right away (otherwise it keeps running until the server notices). */
+	suspend fun stopEncoding(session: Session, playSessionId: String) {
+		request("DELETE", url(session, "/Videos/ActiveEncodings", mapOf(
+			"deviceId" to prefs.deviceIdFor(session.token),
+			"playSessionId" to playSessionId,
+		)), session.token)
+	}
+
 	suspend fun reportPlayback(session: Session, event: String, info: JSONObject) {
 		val path = when (event) {
 			"start" -> "/Sessions/Playing"

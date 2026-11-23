@@ -60,10 +60,13 @@ class SettingsPage(host: MainActivity, private val scrollToAccount: Boolean = fa
 		b.toggle("Ask \"Who's watching?\" at start", "Only when more than one user is saved", isOn = { prefs.askWhoIsWatching }) {
 			prefs.askWhoIsWatching = it
 		}
-		b.action("Sign out ${prefs.userName ?: "user"}", "Removes this user from the TV") {
-			Dialogs.confirm(host, "Sign out ${prefs.userName ?: ""}?", "You can sign in again with Quick Connect or your password.", "Sign out") {
-				host.signOut()
-			}
+		b.action("Remove ${prefs.userName ?: "user"} from this TV", "Signs out for good. To just change user, use Switch user") {
+			Dialogs.confirm(
+				host,
+				"Remove ${prefs.userName ?: "this user"}?",
+				"Signs ${prefs.userName ?: "the user"} out on this TV. The name stays on the sign-in screen, so signing in again only needs the password.",
+				"Remove",
+			) { host.signOut() }
 		}
 		b.action("Server", prefs.serverName ?: "Jellyfin", JellyfinApi.normalizeBaseUrl(prefs.serverUrl ?: Prefs.DEFAULT_SERVER)) {
 			Dialogs.input(host, "Jellyfin server address", prefs.serverUrl, Prefs.DEFAULT_SERVER) { value ->
@@ -90,6 +93,13 @@ class SettingsPage(host: MainActivity, private val scrollToAccount: Boolean = fa
 		}
 		b.stepper("Sidebar", value = { SIDEBAR[prefs.sidebarMode.coerceIn(0, 2)] }) { d, _ ->
 			appearance { prefs.sidebarMode = (prefs.sidebarMode + d + 3) % 3 }
+		}
+		b.action("Sidebar items", "Hold OK on any sidebar item to move or hide it", "Reset") {
+			Dialogs.confirm(host, "Reset the sidebar?", "Shows every item again in the default order (Settings first).", "Reset") {
+				prefs.navOrder = emptyList()
+				prefs.navHidden = emptySet()
+				host.restart()
+			}
 		}
 		b.toggle("Titles under posters", isOn = { prefs.showCardTitles }) { appearance { prefs.showCardTitles = it } }
 		b.toggle("Ratings on posters", isOn = { prefs.showRatings }) { appearance { prefs.showRatings = it } }

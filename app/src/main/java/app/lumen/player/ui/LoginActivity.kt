@@ -17,7 +17,6 @@ import androidx.lifecycle.lifecycleScope
 import app.lumen.player.R
 import app.lumen.player.jellyfin.ApiException
 import app.lumen.player.jellyfin.JellyfinApi
-import app.lumen.player.jellyfin.PublicUser
 import app.lumen.player.jellyfin.SignedIn
 import app.lumen.player.util.Account
 import app.lumen.player.util.Images
@@ -86,24 +85,59 @@ class LoginActivity : BaseActivity() {
 		serverLine.text = "●  $base"
 		status.text = "Connecting…"
 		users.removeAllViews()
+		// Users already signed in on this TV: one click, no password (works even before the server answers).
+		val saved = prefs.accounts.filter { JellyfinApi.normalizeBaseUrl(it.serverUrl) == base }
+		saved.forEach { account ->
+			addTile(account.userName, account.imageUrl(), "Signed in") {
+				prefs.activate(account)
+				openMain()
+			}
+		}
+		users.getChildAt(0)?.requestFocus()
 		lifecycleScope.launch {
 			try {
 				serverName = api.publicServerName(base)
 				serverLine.text = "●  $serverName  ·  $base"
 				val list = runCatching { api.publicUsers(base) }.getOrDefault(emptyList())
-				list.forEach { addUser(it) }
-				status.text = if (list.isEmpty()) "Use Quick Connect or type your username." else "Pick your profile, or use Quick Connect."
-				(users.getChildAt(0) ?: findViewById<View>(R.id.btn_quick_connect)).requestFocus()
+				val savedIds = saved.map { it.userId }.toSet()
+				val shownNames = saved.map { it.userName.lowercase() }.toMutableSet()
+				list.filter { it.id !in savedIds }.forEach { user ->
+					shownNames += user.name.lowercase()
+					addTile(user.name, api.userImageUrl(base, user), null) {
+						if (user.hasPassword) showPassword(user.name) else signIn(user.name, "")
+					}
+				}
+				// Users who signed in here before but were removed or hidden from the server's login screen.
+				prefs.recentUsers(base).filter { it.lowercase() !in shownNames }.forEach { name ->
+					addTile(name, null, "Password") { showPassword(name) }
+				}
+				status.text = when {
+					users.childCount == 0 -> "Use Quick Connect or type your username."
+					saved.isNotEmpty() -> "Pick your profile — signed-in users open right away."
+					else -> "Pick your profile, or use Quick Connect."
+				}
+				if (currentFocus == null || !isInside(currentFocus, users)) {
+					(users.getChildAt(0) ?: findViewById<View>(R.id.btn_quick_connect)).requestFocus()
+				}
 			} catch (e: CancellationException) {
 				throw e
 			} catch (e: Exception) {
 				status.text = "Can’t reach $base (${e.message ?: e.javaClass.simpleName}).\nCheck that the server is running, or change the address."
-				findViewById<View>(R.id.btn_change_server).requestFocus()
+				if (users.childCount == 0) findViewById<View>(R.id.btn_change_server).requestFocus()
 			}
 		}
 	}
 
-	private fun addUser(user: PublicUser) {
+	private fun isInside(view: View?, parent: View): Boolean {
+		var current: Any? = view
+		while (current is View) {
+			if (current === parent) return true
+			current = current.parent
+		}
+		return false
+	}
+
+	private fun addTile(name: String, imageUrl: String?, badge: String?, onClick: () -> Unit) {
 		val tile = LinearLayout(this).apply {
 			orientation = LinearLayout.VERTICAL
 			gravity = Gravity.CENTER_HORIZONTAL
@@ -118,46 +152,39 @@ class LoginActivity : BaseActivity() {
 			clipToOutline = true
 		}
 		val letter = TextView(this).apply {
-			text = user.name.take(1).uppercase()
+			text = name.take(1).uppercase()
 			gravity = Gravity.CENTER
 			typeface = Ui.display(context)
 			setTextSize(TypedValue.COMPLEX_UNIT_SP, 34f)
 			setTextColor(ContextCompat.getColor(context, R.color.lumen_accent))
 		}
 		frame.addView(letter, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
-		val image = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP }
-		frame.addView(image, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
-		Images.load(image, api.userImageUrl(base, user))
+		if (imageUrl != null) {
+			val image = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP }
+			frame.addView(image, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+			Images.load(image, imageUrl)
+		}
 		tile.addView(frame, LinearLayout.LayoutParams(Ui.dp(this, 96), Ui.dp(this, 96)))
 		tile.addView(TextView(this).apply {
-			text = user.name
+			text = name
 			gravity = Gravity.CENTER
+			maxLines = 1
 			typeface = Ui.medium(context)
 			setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
 			setTextColor(ContextCompat.getColorStateList(context, R.color.row_text))
 			isDuplicateParentStateEnabled = true
 			setPadding(0, Ui.dp(context, 8), 0, 0)
 		})
-		Ui.focusScale(tile, 1.08f)
-		val saved = prefs.accounts.firstOrNull { it.userId == user.id && JellyfinApi.normalizeBaseUrl(it.serverUrl) == base }
-		if (saved != null) {
+		if (badge != null) {
 			tile.addView(TextView(this).apply {
-				text = "Saved"
+				text = badge
 				gravity = Gravity.CENTER
 				setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
-				setTextColor(ContextCompat.getColor(context, R.color.lumen_green))
+				setTextColor(ContextCompat.getColor(context, if (badge == "Signed in") R.color.lumen_green else R.color.lumen_text_3))
 			})
 		}
-		tile.setOnClickListener {
-			when {
-				saved != null -> {
-					prefs.activate(saved)
-					openMain()
-				}
-				user.hasPassword -> showPassword(user.name)
-				else -> signIn(user.name, "")
-			}
-		}
+		Ui.focusScale(tile, 1.08f)
+		tile.setOnClickListener { onClick() }
 		users.addView(tile)
 	}
 
@@ -223,6 +250,7 @@ class LoginActivity : BaseActivity() {
 	}
 
 	private fun onSignedIn(result: SignedIn) {
+		prefs.rememberUser(base, result.userName)
 		prefs.saveAccount(
 			Account(
 				serverUrl = base,

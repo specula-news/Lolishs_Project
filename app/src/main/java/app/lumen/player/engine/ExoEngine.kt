@@ -391,6 +391,12 @@ class ExoEngine(
 		else -> "Decoded → PCM ($name)"
 	}
 
+	override fun frameCounters(): FrameCounters? {
+		val counters = player.videoDecoderCounters ?: return null
+		counters.ensureUpdated()
+		return FrameCounters(counters.droppedBufferCount.toLong(), counters.renderedOutputBufferCount.toLong())
+	}
+
 	override fun release() {
 		player.release()
 		playerView?.player = null

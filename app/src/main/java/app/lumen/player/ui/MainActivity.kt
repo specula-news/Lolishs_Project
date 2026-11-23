@@ -58,6 +58,21 @@ class MainActivity : BaseActivity() {
 
 	private class NavItem(val view: View, val label: TextView, val key: String, val factory: (() -> Page)?, val action: (() -> Unit)?)
 
+	/** Everything that can appear in the sidebar; the user's order / hidden list is applied on top. */
+	private class NavSpec(
+		val key: String,
+		val icon: Int,
+		val label: String,
+		val subtitle: String? = null,
+		val factory: (() -> Page)? = null,
+		val action: (() -> Unit)? = null,
+	)
+
+	private var libraries: List<JfItem> = emptyList()
+	private var navSpecs: List<NavSpec> = emptyList()
+	/** Key of the sidebar item being moved with UP / DOWN (after "Move" in the hold-OK menu). */
+	private var movingKey: String? = null
+
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 		val current = session()
@@ -82,8 +97,9 @@ class MainActivity : BaseActivity() {
 		updates = UpdateFlow(this) { message -> toast(message) }
 
 		buildNav(emptyList())
-		select(navItems.first { it.key == "home" }, focusContent = false)
-		navItems.first { it.key == "home" }.view.requestFocus()
+		val start = startItem()
+		select(start, focusContent = false)
+		start.view.requestFocus()
 		applySidebarMode(focusInSidebar = true)
 
 		lifecycleScope.launch {
@@ -132,49 +148,54 @@ class MainActivity : BaseActivity() {
 	// Sidebar -------------------------------------------------------------------------------------
 
 	private fun buildNav(libraries: List<JfItem>) {
+		this.libraries = libraries
 		navList.removeAllViews()
 		navBottom.removeAllViews()
 		navItems.clear()
-		addPage(navList, "search", R.drawable.ic_search, "Search") { SearchPage(this) }
-		addPage(navList, "home", R.drawable.ic_home, "Home") { HomePage(this) }
+		val specs = mutableListOf(
+			NavSpec("settings", R.drawable.ic_settings, "Settings", factory = { SettingsPage(this) }),
+			NavSpec("search", R.drawable.ic_search, "Search", factory = { SearchPage(this) }),
+			NavSpec("home", R.drawable.ic_home, "Home", factory = { HomePage(this) }),
+		)
 		libraries.forEach { library ->
 			val icon = when (library.collectionType) {
 				"movies" -> R.drawable.ic_movie
 				"tvshows" -> R.drawable.ic_tv
-				"boxsets" -> R.drawable.ic_library
 				else -> R.drawable.ic_library
 			}
-			addPage(navList, "lib:${library.id}", icon, library.name) { LibraryPage(this, library) }
+			specs += NavSpec("lib:${library.id}", icon, library.name, factory = { LibraryPage(this, library) })
 		}
-		addPage(navList, "favorites", R.drawable.ic_favorite, "Favorites") { FavoritesPage(this) }
-		addPage(navList, "upcoming", R.drawable.ic_event, "Upcoming Shows") { UpcomingPage(this) }
-		addAction(navList, "liserver", R.drawable.ic_download, "Li'Server", subtitle = "Search & download") {
-			startActivity(Intent(this, TorrentActivity::class.java))
-		}
-		addPage(navBottom, "settings", R.drawable.ic_settings, "Settings") { SettingsPage(this) }
+		specs += NavSpec("favorites", R.drawable.ic_favorite, "Favorites", factory = { FavoritesPage(this) })
+		specs += NavSpec("upcoming", R.drawable.ic_event, "Upcoming Shows", factory = { UpcomingPage(this) })
+		specs += NavSpec("liserver", R.drawable.ic_download, "Li'Server", subtitle = "Search & download",
+			action = { startActivity(Intent(this, TorrentActivity::class.java)) })
+
+		// The user's order (Settings first by default); items it doesn't know yet keep their default place at the end.
+		val order = prefs.navOrder
+		val sorted = specs.withIndex().sortedBy { (index, spec) ->
+			val saved = order.indexOf(spec.key)
+			if (saved >= 0) saved else order.size + index
+		}.map { it.value }
+		navSpecs = sorted
+		val hidden = prefs.navHidden
+		sorted.filter { it.key !in hidden || it.key in UNHIDEABLE }.forEach { addNavItem(navList, it) }
+
 		val profiles = prefs.accounts.size
-		addAction(navBottom, "user", R.drawable.ic_person, prefs.userName ?: "Account",
-			subtitle = if (profiles > 1) "Switch user ($profiles)" else "Switch / add user") {
-			switchUser()
-		}
+		addNavItem(navBottom, NavSpec("user", R.drawable.ic_person, prefs.userName ?: "Account",
+			subtitle = if (profiles > 1) "Switch user ($profiles)" else "Switch / add user", action = { switchUser() }))
 		applySidebarMode(sidebar.findFocus() != null)
 	}
 
-	private fun addPage(parent: LinearLayout, key: String, icon: Int, label: String, subtitle: String? = null, factory: () -> Page) =
-		addNavItem(parent, key, icon, label, subtitle, factory, null)
+	private fun startItem(): NavItem =
+		navItems.firstOrNull { it.key == "home" } ?: navItems.first { it.factory != null }
 
-	private fun addAction(parent: LinearLayout, key: String, icon: Int, label: String, subtitle: String? = null, action: () -> Unit) =
-		addNavItem(parent, key, icon, label, subtitle, null, action)
-
-	private fun addNavItem(
-		parent: LinearLayout,
-		key: String,
-		icon: Int,
-		label: String,
-		subtitle: String?,
-		factory: (() -> Page)?,
-		action: (() -> Unit)?,
-	) {
+	private fun addNavItem(parent: LinearLayout, spec: NavSpec) {
+		val key = spec.key
+		val icon = spec.icon
+		val label = spec.label
+		val subtitle = spec.subtitle
+		val factory = spec.factory
+		val action = spec.action
 		val row = LinearLayout(this).apply {
 			orientation = LinearLayout.HORIZONTAL
 			gravity = Gravity.CENTER_VERTICAL
@@ -224,6 +245,102 @@ class MainActivity : BaseActivity() {
 			if (item.factory != null) select(item, focusContent = true) else item.action?.invoke()
 		}
 		row.setOnFocusChangeListener { _, _ -> handler.post { applySidebarMode(sidebar.findFocus() != null) } }
+		if (parent === navList) {
+			row.isLongClickable = true
+			row.setOnLongClickListener {
+				editNavItem(item)
+				true
+			}
+		}
+	}
+
+	// Sidebar editing (hold OK on an item) -----------------------------------------------------------
+
+	private fun editNavItem(item: NavItem) {
+		val label = item.label.text.toString()
+		val hidden = prefs.navHidden
+		val hiddenSpecs = navSpecs.filter { it.key in hidden && it.key !in UNHIDEABLE }
+		val options = mutableListOf<Pair<String, () -> Unit>>()
+		options += "Move up / down" to { startMove(item) }
+		if (item.key !in UNHIDEABLE) options += "Hide \"$label\"" to { hideNavItem(item) }
+		if (hiddenSpecs.isNotEmpty()) options += "Show hidden items (${hiddenSpecs.size})" to { showHiddenItems(hiddenSpecs) }
+		options += "Reset sidebar" to {
+			prefs.navOrder = emptyList()
+			prefs.navHidden = emptySet()
+			rebuildNav(focusKey = item.key)
+			toast("Sidebar reset")
+		}
+		android.app.AlertDialog.Builder(this)
+			.setTitle(label)
+			.setItems(options.map { it.first }.toTypedArray()) { _, which -> options[which].second() }
+			.setNegativeButton("Close", null)
+			.show()
+	}
+
+	private fun startMove(item: NavItem) {
+		movingKey = item.key
+		item.view.isActivated = true
+		item.view.requestFocus()
+		toast("▲ ▼ to move \"${item.label.text}\" · OK when done")
+	}
+
+	private fun moveNavItem(direction: Int) {
+		val item = navItems.firstOrNull { it.key == movingKey } ?: return
+		val index = navList.indexOfChild(item.view)
+		val target = index + direction
+		if (index < 0 || target < 0 || target >= navList.childCount) return
+		val params = item.view.layoutParams
+		navList.removeView(item.view)
+		navList.addView(item.view, target, params)
+		item.view.requestFocus()
+		saveNavOrder()
+	}
+
+	private fun finishMove() {
+		navItems.firstOrNull { it.key == movingKey }?.view?.isActivated = false
+		movingKey = null
+		toast("Saved")
+	}
+
+	/** Visible order as shown, with hidden items kept where they were. */
+	private fun saveNavOrder() {
+		val visible = (0 until navList.childCount).mapNotNull { i -> navItems.firstOrNull { it.view === navList.getChildAt(i) }?.key }
+		val hidden = navSpecs.map { it.key }.filter { it !in visible }
+		prefs.navOrder = visible + hidden
+	}
+
+	private fun hideNavItem(item: NavItem) {
+		saveNavOrder()
+		prefs.navHidden = prefs.navHidden + item.key
+		val index = navList.indexOfChild(item.view)
+		val wasSelected = selectedNav === item
+		rebuildNav(focusKey = null, focusIndex = index)
+		if (wasSelected) select(startItem(), focusContent = false)
+		toast("\"${item.label.text}\" hidden · hold OK on any item to bring it back")
+	}
+
+	private fun showHiddenItems(hiddenSpecs: List<NavSpec>) {
+		android.app.AlertDialog.Builder(this)
+			.setTitle("Show again")
+			.setItems(hiddenSpecs.map { it.label }.toTypedArray()) { _, which ->
+				val spec = hiddenSpecs[which]
+				prefs.navHidden = prefs.navHidden - spec.key
+				rebuildNav(focusKey = spec.key)
+			}
+			.setNegativeButton("Close", null)
+			.show()
+	}
+
+	private fun rebuildNav(focusKey: String?, focusIndex: Int = -1) {
+		val selectedKey = selectedNav?.key
+		buildNav(libraries)
+		navItems.firstOrNull { it.key == selectedKey }?.let { item ->
+			selectedNav = item
+			item.view.isSelected = true
+		}
+		val target = navItems.firstOrNull { it.key == focusKey }?.view
+			?: navList.getChildAt(focusIndex.coerceAtMost(navList.childCount - 1).coerceAtLeast(0))
+		target?.requestFocus()
 	}
 
 	private fun duplicateParentStateEnabled(view: View) {
@@ -272,6 +389,18 @@ class MainActivity : BaseActivity() {
 	// Keys: LEFT from the content goes back to the sidebar, RIGHT from the sidebar into the content.
 
 	override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+		if (movingKey != null) {
+			// Moving a sidebar item: UP / DOWN move it, OK or BACK finish. Swallow everything else.
+			if (event.action == KeyEvent.ACTION_DOWN) {
+				when (event.keyCode) {
+					KeyEvent.KEYCODE_DPAD_UP -> moveNavItem(-1)
+					KeyEvent.KEYCODE_DPAD_DOWN -> moveNavItem(1)
+					KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER,
+					KeyEvent.KEYCODE_BACK -> finishMove()
+				}
+			}
+			return true
+		}
 		if (event.action == KeyEvent.ACTION_DOWN) {
 			val focused = currentFocus
 			val inSidebar = focused != null && isInside(focused, sidebar)
@@ -388,5 +517,7 @@ class MainActivity : BaseActivity() {
 
 	private companion object {
 		val BROWSABLE = setOf("movies", "tvshows", "boxsets", "homevideos", "mixed", "musicvideos", null)
+		/** Always visible, so the sidebar can't lock you out of Settings or Home. */
+		val UNHIDEABLE = setOf("settings", "home")
 	}
 }

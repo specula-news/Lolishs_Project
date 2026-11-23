@@ -34,6 +34,9 @@ interface EngineListener {
 }
 
 /** Common surface for the ExoPlayer and VLC backends so the UI doesn't care which one runs. */
+/** Cumulative frame counts since the video decoder started. */
+data class FrameCounters(val dropped: Long, val rendered: Long)
+
 interface PlayerEngine {
 	val name: String
 	var listener: EngineListener?
@@ -66,6 +69,9 @@ interface PlayerEngine {
 
 	fun badges(): MediaBadges
 	fun stats(): List<Pair<String, String>>
+
+	/** Running totals of dropped and shown video frames (for stutter detection), or null if unknown. */
+	fun frameCounters(): FrameCounters? = null
 
 	fun release()
 }
