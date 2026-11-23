@@ -202,12 +202,108 @@ class Prefs(context: Context) {
 	val isLinked: Boolean
 		get() = !serverUrl.isNullOrBlank() && !accessToken.isNullOrBlank() && !userId.isNullOrBlank()
 
+	/** Clears the active user (the saved profiles stay). */
 	fun unlink() = sp.edit {
 		remove("access_token")
 		remove("user_id")
 		remove("user_name")
 		remove("server_name")
+		remove("active_device_id")
 	}
+
+	// Profiles (several Jellyfin users on this TV) ----------------------------------------------------
+
+	/** Every signed-in user saved on this device. The active one is mirrored in the fields above. */
+	val accounts: List<Account>
+		get() {
+			val raw = str("accounts")
+			val list = if (raw == null) emptyList() else Account.parseList(raw)
+			if (list.isEmpty() && isLinked) {
+				// First run after the update: keep the user who was already signed in.
+				val legacy = Account(
+					serverUrl = serverUrl ?: DEFAULT_SERVER,
+					serverName = serverName,
+					userId = userId!!,
+					userName = userName ?: "User",
+					token = accessToken!!,
+					deviceId = deviceId,
+					imageTag = null,
+				)
+				putStr("accounts", Account.toJson(listOf(legacy)))
+				putStr("active_device_id", legacy.deviceId)
+				return listOf(legacy)
+			}
+			return list
+		}
+
+	val activeAccount: Account?
+		get() {
+			val id = userId ?: return null
+			val token = accessToken ?: return null
+			return accounts.firstOrNull { it.userId == id && it.token == token }
+		}
+
+	/** DeviceId sent to Jellyfin for [token]; every profile has its own so the server keeps them apart. */
+	fun deviceIdFor(token: String?): String {
+		if (token != null) {
+			if (token == accessToken) str("active_device_id")?.let { return it }
+			accounts.firstOrNull { it.token == token }?.let { return it.deviceId }
+		}
+		return deviceId
+	}
+
+	/** Stable DeviceId for a username, so signing in again replaces the old token instead of piling up. */
+	fun deviceIdForUser(baseUrl: String, userName: String): String {
+		val digest = java.security.MessageDigest.getInstance("SHA-256")
+			.digest("$deviceId|$baseUrl|${userName.lowercase()}".toByteArray())
+		return digest.take(16).joinToString("") { "%02x".format(it) }
+	}
+
+	/** Saves (or refreshes) a profile and makes it the active user. */
+	fun saveAccount(account: Account) {
+		val others = accounts.filterNot { it.sameUser(account) }
+		putStr("accounts", Account.toJson(others + account))
+		activate(account)
+	}
+
+	fun activate(account: Account) = sp.edit {
+		putString("server_url", account.serverUrl)
+		putString("server_name", account.serverName)
+		putString("access_token", account.token)
+		putString("user_id", account.userId)
+		putString("user_name", account.userName)
+		putString("active_device_id", account.deviceId)
+		putString("last_account", account.key)
+	}
+
+	fun removeAccount(account: Account) {
+		putStr("accounts", Account.toJson(accounts.filterNot { it.sameUser(account) }))
+		if (activeAccount?.sameUser(account) == true || userId == account.userId) unlink()
+	}
+
+	/** Key of the profile used last, to pre-select it in "Who's watching?". */
+	val lastAccountKey: String?
+		get() = str("last_account")
+
+	/** Show "Who's watching?" when the app starts and more than one profile is saved. */
+	var askWhoIsWatching: Boolean
+		get() = bool("ask_who_is_watching", true)
+		set(value) = putBool("ask_who_is_watching", value)
+
+	// App updates ------------------------------------------------------------------------------
+
+	var autoUpdateCheck: Boolean
+		get() = bool("auto_update_check", true)
+		set(value) = putBool("auto_update_check", value)
+
+	var lastUpdateCheck: Long
+		get() = sp.getLong("last_update_check", 0L)
+		set(value) = sp.edit { putLong("last_update_check", value) }
+
+	/** A release the user chose to skip (tag name). */
+	var skippedUpdate: String?
+		get() = str("skipped_update")
+		set(value) = putStr("skipped_update", value)
 
 	// Li'Server (torrents) -----------------------------------------------------------------------
 

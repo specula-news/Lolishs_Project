@@ -12,6 +12,7 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import app.lumen.player.LolishApp
+import app.lumen.player.util.Prefs
 import java.io.File
 
 /**
@@ -76,7 +77,14 @@ class LaunchActivity : Activity() {
 	}
 
 	private fun openApp() {
-		startActivity(Intent(this, MainActivity::class.java))
+		val prefs = runCatching { Prefs(this) }.getOrNull()
+		val accounts = prefs?.let { runCatching { it.accounts }.getOrDefault(emptyList()) }.orEmpty()
+		val next = when {
+			accounts.size > 1 && prefs?.askWhoIsWatching == true -> ProfilesActivity::class.java
+			accounts.isEmpty() && prefs?.isLinked != true -> LoginActivity::class.java
+			else -> MainActivity::class.java
+		}
+		startActivity(Intent(this, next))
 		finish()
 	}
 }

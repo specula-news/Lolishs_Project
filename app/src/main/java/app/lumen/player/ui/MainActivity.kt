@@ -54,6 +54,7 @@ class MainActivity : BaseActivity() {
 	private var pendingBackdrop: String? = null
 	private var shownBackdrop: String? = null
 	private var sidebarExpanded = true
+	private lateinit var updates: UpdateFlow
 
 	private class NavItem(val view: View, val label: TextView, val key: String, val factory: (() -> Page)?, val action: (() -> Unit)?)
 
@@ -61,7 +62,8 @@ class MainActivity : BaseActivity() {
 		super.onCreate(savedInstanceState)
 		val current = session()
 		if (current == null) {
-			startActivity(Intent(this, LoginActivity::class.java))
+			val next = if (prefs.accounts.isNotEmpty()) ProfilesActivity::class.java else LoginActivity::class.java
+			startActivity(Intent(this, next))
 			finish()
 			return
 		}
@@ -77,6 +79,7 @@ class MainActivity : BaseActivity() {
 		backdrop = findViewById(R.id.backdrop)
 		toastView = findViewById(R.id.toast)
 		brandText.text = getString(R.string.app_name)
+		updates = UpdateFlow(this) { message -> toast(message) }
 
 		buildNav(emptyList())
 		select(navItems.first { it.key == "home" }, focusContent = false)
@@ -95,6 +98,9 @@ class MainActivity : BaseActivity() {
 			}
 		}
 
+		refreshProfile()
+		handler.postDelayed({ if (!isFinishing) updates.check(manual = false) }, 4_000L)
+
 		onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
 			override fun handleOnBackPressed() {
 				if (sidebar.findFocus() == null) {
@@ -109,6 +115,18 @@ class MainActivity : BaseActivity() {
 	override fun onResume() {
 		super.onResume()
 		page?.onReturn()
+		if (::updates.isInitialized) updates.onResume()
+	}
+
+	/** Keeps the saved profile's name and avatar in step with the server. */
+	private fun refreshProfile() {
+		val account = prefs.activeAccount ?: return
+		lifecycleScope.launch {
+			val (name, tag) = runCatching { api.me(session) }.getOrNull() ?: return@launch
+			if (name != account.userName || tag != account.imageTag) {
+				prefs.saveAccount(account.copy(userName = name, imageTag = tag))
+			}
+		}
 	}
 
 	// Sidebar -------------------------------------------------------------------------------------
@@ -134,8 +152,10 @@ class MainActivity : BaseActivity() {
 			startActivity(Intent(this, TorrentActivity::class.java))
 		}
 		addPage(navBottom, "settings", R.drawable.ic_settings, "Settings") { SettingsPage(this) }
-		addPage(navBottom, "user", R.drawable.ic_person, prefs.userName ?: "Account", subtitle = prefs.serverName ?: "Signed in") {
-			SettingsPage(this, scrollToAccount = true)
+		val profiles = prefs.accounts.size
+		addAction(navBottom, "user", R.drawable.ic_person, prefs.userName ?: "Account",
+			subtitle = if (profiles > 1) "Switch user ($profiles)" else "Switch / add user") {
+			switchUser()
 		}
 		applySidebarMode(sidebar.findFocus() != null)
 	}
@@ -260,11 +280,15 @@ class MainActivity : BaseActivity() {
 					if (page?.focusFirst() == true) return true
 				}
 				KeyEvent.KEYCODE_DPAD_LEFT -> if (!inSidebar && focused != null) {
+					// Let the focused row use LEFT first (e.g. the size steppers in Settings).
+					if (super.dispatchKeyEvent(event)) return true
 					val next = focused.focusSearch(View.FOCUS_LEFT)
 					if (next == null || isInside(next, sidebar)) {
 						selectedNav?.view?.requestFocus()
 						return true
 					}
+					// Not consumed: returning false lets Android move focus left as usual.
+					return false
 				}
 			}
 		}
@@ -323,11 +347,38 @@ class MainActivity : BaseActivity() {
 
 	fun drawable(id: Int): Drawable? = ContextCompat.getDrawable(this, id)
 
+	/** Signs the current user out of this TV (removes the profile) and shows the remaining ones. */
 	fun signOut() {
+		prefs.activeAccount?.let { account ->
+			AppScope.io.launch { api.logout(account.serverUrl, account.token, account.deviceId) }
+			prefs.removeAccount(account)
+		}
 		prefs.unlink()
+		val next = if (prefs.accounts.isNotEmpty()) ProfilesActivity::class.java else LoginActivity::class.java
+		startActivity(Intent(this, next))
+		finish()
+	}
+
+	/** "Who's watching?" */
+	fun switchUser() {
+		startActivity(Intent(this, ProfilesActivity::class.java))
+		finish()
+	}
+
+	fun addUser() {
 		startActivity(Intent(this, LoginActivity::class.java))
 		finish()
 	}
+
+	/** Server address changed in Settings: sign in on the new server (saved profiles stay). */
+	fun changeServer(url: String) {
+		prefs.unlink()
+		prefs.serverUrl = url
+		startActivity(Intent(this, LoginActivity::class.java))
+		finish()
+	}
+
+	fun checkForUpdates() = updates.check(manual = true)
 
 	fun restart() {
 		startActivity(Intent(this, MainActivity::class.java))

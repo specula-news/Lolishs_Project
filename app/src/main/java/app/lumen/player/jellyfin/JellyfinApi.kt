@@ -17,6 +17,9 @@ class ApiException(val code: Int, message: String) : Exception(message)
 
 data class Session(val baseUrl: String, val token: String, val userId: String)
 
+/** Result of a sign-in: the session plus what we need to save the profile. */
+data class SignedIn(val session: Session, val userName: String, val imageTag: String?, val deviceId: String)
+
 data class Chapter(val startMs: Long, val name: String)
 
 /** Intro / Outro / Recap / Preview / Commercial ranges from the server (Jellyfin 10.10+). */
@@ -85,12 +88,12 @@ data class ItemQuery(
  */
 class JellyfinApi(private val prefs: Prefs) {
 
-	fun authorizationHeader(token: String?): String {
+	fun authorizationHeader(token: String?, deviceId: String? = null): String {
 		val device = ascii(Build.MODEL ?: "Android TV").ifBlank { "Android TV" }
 		val parts = mutableListOf(
 			"Client=\"Lolish's Project\"",
 			"Device=\"$device\"",
-			"DeviceId=\"${ascii(prefs.deviceId)}\"",
+			"DeviceId=\"${ascii(deviceId ?: prefs.deviceIdFor(token))}\"",
 			"Version=\"${BuildConfig.VERSION_NAME}\"",
 		)
 		if (!token.isNullOrBlank()) parts += "Token=\"${ascii(token)}\""
@@ -124,35 +127,45 @@ class JellyfinApi(private val prefs: Prefs) {
 	}
 
 	/** Starts Quick Connect. Returns (secret, code). */
-	suspend fun quickConnectInitiate(baseUrl: String): Pair<String, String> {
-		val json = JSONObject(request("POST", "$baseUrl/QuickConnect/Initiate", null, body = ""))
+	suspend fun quickConnectInitiate(baseUrl: String, deviceId: String): Pair<String, String> {
+		val json = JSONObject(request("POST", "$baseUrl/QuickConnect/Initiate", null, body = "", deviceId = deviceId))
 		val secret = json.str("Secret") ?: throw ApiException(0, "Quick Connect returned no secret")
 		val code = json.str("Code") ?: throw ApiException(0, "Quick Connect returned no code")
 		return secret to code
 	}
 
-	suspend fun quickConnectAuthorized(baseUrl: String, secret: String): Boolean {
-		val json = JSONObject(request("GET", "$baseUrl/QuickConnect/Connect?secret=${enc(secret)}", null))
+	suspend fun quickConnectAuthorized(baseUrl: String, secret: String, deviceId: String): Boolean {
+		val json = JSONObject(request("GET", "$baseUrl/QuickConnect/Connect?secret=${enc(secret)}", null, deviceId = deviceId))
 		return json.optBoolean("Authenticated", false)
 	}
 
-	suspend fun authenticateWithQuickConnect(baseUrl: String, secret: String): Session {
+	suspend fun authenticateWithQuickConnect(baseUrl: String, secret: String, deviceId: String): SignedIn {
 		val body = JSONObject().put("Secret", secret).toString()
-		return parseAuth(baseUrl, request("POST", "$baseUrl/Users/AuthenticateWithQuickConnect", null, body))
+		return parseAuth(baseUrl, request("POST", "$baseUrl/Users/AuthenticateWithQuickConnect", null, body, deviceId), deviceId)
 	}
 
-	suspend fun authenticateByName(baseUrl: String, user: String, password: String): Session {
+	suspend fun authenticateByName(baseUrl: String, user: String, password: String, deviceId: String): SignedIn {
 		val body = JSONObject().put("Username", user).put("Pw", password).toString()
-		return parseAuth(baseUrl, request("POST", "$baseUrl/Users/AuthenticateByName", null, body))
+		return parseAuth(baseUrl, request("POST", "$baseUrl/Users/AuthenticateByName", null, body, deviceId), deviceId)
 	}
 
-	private fun parseAuth(baseUrl: String, text: String): Session {
+	private fun parseAuth(baseUrl: String, text: String, deviceId: String): SignedIn {
 		val json = JSONObject(text)
 		val token = json.str("AccessToken") ?: throw ApiException(0, "No access token in response")
 		val user = json.optJSONObject("User") ?: throw ApiException(0, "No user in response")
 		val userId = user.str("Id") ?: throw ApiException(0, "No user id in response")
-		prefs.userName = user.str("Name")
-		return Session(baseUrl, token, userId)
+		return SignedIn(Session(baseUrl, token, userId), user.str("Name") ?: "User", user.str("PrimaryImageTag"), deviceId)
+	}
+
+	/** Name and avatar tag of the signed-in user (used to refresh saved profiles). */
+	suspend fun me(session: Session): Pair<String, String?> {
+		val json = JSONObject(get(session, "/Users/Me", emptyMap()))
+		return (json.str("Name") ?: "User") to json.str("PrimaryImageTag")
+	}
+
+	/** Revokes a profile's token on the server (best effort). */
+	suspend fun logout(baseUrl: String, token: String, deviceId: String) {
+		runCatching { request("POST", "${normalizeBaseUrl(baseUrl)}/Sessions/Logout", token, body = "", deviceId = deviceId) }
 	}
 
 	// Browsing ---------------------------------------------------------------------------------
@@ -496,9 +509,9 @@ class JellyfinApi(private val prefs: Prefs) {
 	private suspend fun get(session: Session, path: String, params: Map<String, String>): String =
 		request("GET", url(session, path, params), session.token)
 
-	private suspend fun request(method: String, url: String, token: String?, body: String? = null): String =
+	private suspend fun request(method: String, url: String, token: String?, body: String? = null, deviceId: String? = null): String =
 		withContext(Dispatchers.IO) {
-			val connection = open(method, url, token)
+			val connection = open(method, url, token, deviceId)
 			try {
 				if (body != null) {
 					connection.doOutput = true
@@ -515,14 +528,14 @@ class JellyfinApi(private val prefs: Prefs) {
 			}
 		}
 
-	private fun open(method: String, url: String, token: String?): HttpURLConnection =
+	private fun open(method: String, url: String, token: String?, deviceId: String? = null): HttpURLConnection =
 		(URL(url).openConnection() as HttpURLConnection).apply {
 			requestMethod = method
 			connectTimeout = 10_000
 			readTimeout = 20_000
 			instanceFollowRedirects = true
 			setRequestProperty("Accept", "application/json")
-			setRequestProperty("Authorization", authorizationHeader(token))
+			setRequestProperty("Authorization", authorizationHeader(token, deviceId))
 		}
 
 	companion object {

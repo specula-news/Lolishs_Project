@@ -53,18 +53,21 @@ class SettingsPage(host: MainActivity, private val scrollToAccount: Boolean = fa
 		list.addView(host.cards.heading("Settings", null, 40f))
 
 		// Account
-		b.header("Jellyfin account")
-		b.action("Server", prefs.serverName ?: "Jellyfin", JellyfinApi.normalizeBaseUrl(prefs.serverUrl ?: Prefs.DEFAULT_SERVER)) {
-			Dialogs.input(host, "Jellyfin server address", prefs.serverUrl, Prefs.DEFAULT_SERVER) { value ->
-				if (value.isNotBlank()) {
-					prefs.serverUrl = JellyfinApi.normalizeBaseUrl(value)
-					host.signOut()
-				}
+		b.header("Users")
+		val profiles = prefs.accounts
+		b.action("Switch user", "Who's watching? · ${profiles.size} saved on this TV", prefs.userName ?: "") { host.switchUser() }
+		b.action("Add user", "Sign in another Jellyfin user and keep both") { host.addUser() }
+		b.toggle("Ask \"Who's watching?\" at start", "Only when more than one user is saved", isOn = { prefs.askWhoIsWatching }) {
+			prefs.askWhoIsWatching = it
+		}
+		b.action("Sign out ${prefs.userName ?: "user"}", "Removes this user from the TV") {
+			Dialogs.confirm(host, "Sign out ${prefs.userName ?: ""}?", "You can sign in again with Quick Connect or your password.", "Sign out") {
+				host.signOut()
 			}
 		}
-		b.action("Signed in as ${prefs.userName ?: "user"}", "Switch user or sign out", "Sign out") {
-			Dialogs.confirm(host, "Sign out?", "You can sign in again with Quick Connect or your password.", "Sign out") {
-				host.signOut()
+		b.action("Server", prefs.serverName ?: "Jellyfin", JellyfinApi.normalizeBaseUrl(prefs.serverUrl ?: Prefs.DEFAULT_SERVER)) {
+			Dialogs.input(host, "Jellyfin server address", prefs.serverUrl, Prefs.DEFAULT_SERVER) { value ->
+				if (value.isNotBlank()) host.changeServer(JellyfinApi.normalizeBaseUrl(value))
 			}
 		}
 
@@ -194,6 +197,10 @@ class SettingsPage(host: MainActivity, private val scrollToAccount: Boolean = fa
 
 		// About
 		b.header("About")
+		b.action("Check for updates", "Installed: ${BuildConfig.VERSION_NAME}", "Check") { host.checkForUpdates() }
+		b.toggle("Check for updates automatically", "Looks for new builds on GitHub when the app starts", isOn = { prefs.autoUpdateCheck }) {
+			prefs.autoUpdateCheck = it
+		}
 		b.note(
 			"Lolish's Project ${BuildConfig.VERSION_NAME} (${host.packageName})\n" +
 				"Also works as the external player for the Jellyfin app: Settings → Playback → Video player → External app."

@@ -11,13 +11,15 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.activity.OnBackPressedCallback
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import app.lumen.player.R
 import app.lumen.player.jellyfin.ApiException
 import app.lumen.player.jellyfin.JellyfinApi
 import app.lumen.player.jellyfin.PublicUser
-import app.lumen.player.jellyfin.Session
+import app.lumen.player.jellyfin.SignedIn
+import app.lumen.player.util.Account
 import app.lumen.player.util.Images
 import app.lumen.player.util.Prefs
 import app.lumen.player.util.Ui
@@ -26,6 +28,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.util.UUID
 
 /** Sign in to the (pre-filled) Jellyfin server: pick a user, Quick Connect, or type a username. */
 class LoginActivity : BaseActivity() {
@@ -69,6 +72,13 @@ class LoginActivity : BaseActivity() {
 				true
 			} else false
 		}
+		onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+			override fun handleOnBackPressed() {
+				// Back to "Who's watching?" when other profiles are saved.
+				if (prefs.accounts.isNotEmpty()) startActivity(Intent(this@LoginActivity, ProfilesActivity::class.java))
+				finish()
+			}
+		})
 		loadServer()
 	}
 
@@ -129,8 +139,24 @@ class LoginActivity : BaseActivity() {
 			setPadding(0, Ui.dp(context, 8), 0, 0)
 		})
 		Ui.focusScale(tile, 1.08f)
+		val saved = prefs.accounts.firstOrNull { it.userId == user.id && JellyfinApi.normalizeBaseUrl(it.serverUrl) == base }
+		if (saved != null) {
+			tile.addView(TextView(this).apply {
+				text = "Saved"
+				gravity = Gravity.CENTER
+				setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
+				setTextColor(ContextCompat.getColor(context, R.color.lumen_green))
+			})
+		}
 		tile.setOnClickListener {
-			if (user.hasPassword) showPassword(user.name) else signIn(user.name, "")
+			when {
+				saved != null -> {
+					prefs.activate(saved)
+					openMain()
+				}
+				user.hasPassword -> showPassword(user.name)
+				else -> signIn(user.name, "")
+			}
 		}
 		users.addView(tile)
 	}
@@ -153,7 +179,7 @@ class LoginActivity : BaseActivity() {
 		status.text = "Signing in…"
 		job = lifecycleScope.launch {
 			try {
-				onSignedIn(api.authenticateByName(base, name, pass))
+				onSignedIn(api.authenticateByName(base, name, pass, prefs.deviceIdForUser(base, name)))
 			} catch (e: CancellationException) {
 				throw e
 			} catch (e: ApiException) {
@@ -170,16 +196,18 @@ class LoginActivity : BaseActivity() {
 		status.text = "Starting Quick Connect…"
 		job = lifecycleScope.launch {
 			try {
-				val (secret, value) = api.quickConnectInitiate(base)
+				// Quick Connect doesn't know the user yet, so each attempt gets its own device id.
+				val deviceId = UUID.randomUUID().toString().replace("-", "")
+				val (secret, value) = api.quickConnectInitiate(base, deviceId)
 				code.text = value
 				code.visibility = View.VISIBLE
 				status.text = "On your phone or computer open Jellyfin → your profile → Quick Connect, and enter this code."
 				var authorized = false
 				while (isActive && !authorized) {
 					delay(3_000L)
-					authorized = api.quickConnectAuthorized(base, secret)
+					authorized = api.quickConnectAuthorized(base, secret, deviceId)
 				}
-				onSignedIn(api.authenticateWithQuickConnect(base, secret))
+				onSignedIn(api.authenticateWithQuickConnect(base, secret, deviceId))
 			} catch (e: CancellationException) {
 				throw e
 			} catch (e: ApiException) {
@@ -194,12 +222,23 @@ class LoginActivity : BaseActivity() {
 		}
 	}
 
-	private fun onSignedIn(session: Session) {
-		prefs.serverUrl = base
-		prefs.serverName = serverName
-		prefs.accessToken = session.token
-		prefs.userId = session.userId
-		startActivity(Intent(this, MainActivity::class.java))
+	private fun onSignedIn(result: SignedIn) {
+		prefs.saveAccount(
+			Account(
+				serverUrl = base,
+				serverName = serverName,
+				userId = result.session.userId,
+				userName = result.userName,
+				token = result.session.token,
+				deviceId = result.deviceId,
+				imageTag = result.imageTag,
+			)
+		)
+		openMain()
+	}
+
+	private fun openMain() {
+		startActivity(Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK))
 		finish()
 	}
 }

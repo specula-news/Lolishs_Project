@@ -2,6 +2,11 @@ plugins {
 	id("com.android.application")
 }
 
+// GitHub Actions numbers every build; that number becomes the app version (2.1.<build>), so the
+// in-app updater can tell which GitHub release is newer. Local builds are 2.1.0.
+val buildNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 0
+val appVersionName = "2.1.$buildNumber"
+
 android {
 	namespace = "app.lumen.player"
 	compileSdk = 37
@@ -9,8 +14,8 @@ android {
 	defaultConfig {
 		minSdk = 23
 		targetSdk = 36
-		versionCode = 2
-		versionName = "2.0.0"
+		versionCode = 1000 + buildNumber
+		versionName = appVersionName
 
 		// The Shield is arm64; most Fire TV sticks run a 32-bit userland.
 		ndk {
@@ -79,7 +84,7 @@ android {
 	}
 }
 
-base.archivesName.set("lolish-project-v2.0.0")
+base.archivesName.set("lolish-project-v$appVersionName")
 
 dependencies {
 	// Kotlin / AndroidX

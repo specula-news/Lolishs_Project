@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -36,3 +36,23 @@ jobs:
           name: lumen-player-apks
           if-no-files-found: error
           path: out/*.apk
+      - name: Publish release (in-app updates download from here)
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NOTES: ${{ github.event.head_commit.message }}
+        run: |
+          TAG="v2.1.${GITHUB_RUN_NUMBER}"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            # Re-run of the same build: just replace the files.
+            gh release upload "$TAG" out/*.apk --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$TAG" out/*.apk \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --title "Lolish's Project 2.1.${GITHUB_RUN_NUMBER}" \
+              --notes "${NOTES:-Build ${GITHUB_RUN_NUMBER}}"
+          fi
+          # Keep the 5 newest releases so the repo doesn't fill up with old APKs.
+          gh release list --repo "$GITHUB_REPOSITORY" --limit 100 --json tagName --jq '.[5:][].tagName' |
+            while read -r old; do gh release delete "$old" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes; done
