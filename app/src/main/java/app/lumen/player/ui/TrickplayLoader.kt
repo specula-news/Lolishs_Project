@@ -63,12 +63,13 @@ class TrickplayLoader(
 	}
 
 	private fun decode(bytes: ByteArray, region: Rect): Bitmap? {
-		val decoder: BitmapRegionDecoder? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+		val created: BitmapRegionDecoder? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
 			BitmapRegionDecoder.newInstance(bytes, 0, bytes.size)
 		} else {
 			@Suppress("DEPRECATION")
 			BitmapRegionDecoder.newInstance(bytes, 0, bytes.size, false)
-		} ?: return null
+		}
+		val decoder: BitmapRegionDecoder = created ?: return null
 		return try {
 			val safe = Rect(region)
 			if (!safe.intersect(0, 0, decoder.width, decoder.height)) return null
