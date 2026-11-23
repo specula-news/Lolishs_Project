@@ -139,7 +139,7 @@ class HomePage(host: MainActivity) : Page(host) {
 		}
 
 		var refocus: View? = null
-		data.forEach { row ->
+		data.forEachIndexed { rowIndex, row ->
 			val (rowView, strip) = host.cards.row(row.title, row.items.size)
 			row.items.forEach { item ->
 				val card = host.cards.create(strip, row.style)
@@ -151,6 +151,13 @@ class HomePage(host: MainActivity) : Page(host) {
 				if (card.tag == focusedId) refocus = card
 			}
 			column.addView(rowView)
+			if (initial && host.prefs.animations && rowIndex < 6) {
+				// Rows rise in one after another on first load (hardware layer, no relayout).
+				rowView.alpha = 0f
+				rowView.translationY = Ui.dp(host, 24).toFloat()
+				rowView.animate().alpha(1f).translationY(0f).setStartDelay(rowIndex * 70L).setDuration(280L)
+					.setInterpolator(android.view.animation.DecelerateInterpolator(1.5f)).withLayer().start()
+			}
 			rowStrips[row.key] = strip to row.items
 		}
 		featured?.let { host.setBackdrop(it) }

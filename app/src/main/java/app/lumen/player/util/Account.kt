@@ -12,6 +12,8 @@ data class Account(
 	val token: String,
 	val deviceId: String,
 	val imageTag: String?,
+	/** Password encrypted with the Android Keystore, so an expired sign-in can be renewed by itself. */
+	val encryptedPassword: String? = null,
 ) {
 	val key: String get() = "$serverUrl|$userId"
 
@@ -28,6 +30,7 @@ data class Account(
 		.put("token", token)
 		.put("deviceId", deviceId)
 		.put("imageTag", imageTag ?: JSONObject.NULL)
+		.put("pw", encryptedPassword ?: JSONObject.NULL)
 
 	companion object {
 		fun parseList(raw: String): List<Account> = runCatching {
@@ -45,6 +48,7 @@ data class Account(
 					token = token,
 					deviceId = o.optString("deviceId").ifBlank { userId },
 					imageTag = o.optString("imageTag").takeIf { it.isNotBlank() && it != "null" },
+					encryptedPassword = o.optString("pw").takeIf { it.isNotBlank() && it != "null" },
 				)
 			}
 		}.getOrDefault(emptyList())

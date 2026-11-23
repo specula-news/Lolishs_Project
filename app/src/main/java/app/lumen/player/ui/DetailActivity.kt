@@ -265,26 +265,10 @@ class DetailActivity : BaseActivity() {
 		sections.removeAllViews()
 		lifecycleScope.launch {
 			when (item.type) {
-				"Series" -> {
-					val seasons = runCatching { api.seasons(session, item.id) }.getOrDefault(emptyList())
-					if (seasons.isNotEmpty()) {
-						val target = playTarget
-						selectedSeasonId = seasons.firstOrNull { it.id == target?.seasonId }?.id ?: seasons.first().id
-						addSeasonRow(item.id, seasons)
-						addEpisodeRow(item.id, selectedSeasonId)
-					}
-				}
-				"Season" -> {
-					selectedSeasonId = item.id
-					addEpisodeRow(item.seriesId ?: return@launch, item.id)
-				}
-				"Episode" -> {
-					val seriesId = item.seriesId
-					if (seriesId != null) {
-						selectedSeasonId = item.seasonId
-						addEpisodeRow(seriesId, item.seasonId, title = "More from this season")
-					}
-				}
+				// Shows, seasons and episodes all get the season picker, so any season is one press away.
+				"Series" -> showSeasons(item.id, playTarget?.seasonId)
+				"Season" -> item.seriesId?.let { showSeasons(it, item.id) }
+				"Episode" -> item.seriesId?.let { showSeasons(it, item.seasonId) }
 				"BoxSet" -> {
 					val inside = runCatching {
 						api.items(session, ItemQuery(parentId = item.id, sortBy = "PremiereDate,ProductionYear", recursive = false, limit = 200)).items
@@ -296,13 +280,35 @@ class DetailActivity : BaseActivity() {
 			if (cast.isNotEmpty()) {
 				val (row, strip) = cards.row("Cast", null)
 				cast.forEach { person -> strip.addView(cards.createPerson(strip, person)) }
-				sections.addView(row)
+				addSection(row)
 			}
 			if (item.type == "Movie" || item.type == "Series") {
 				val similar = runCatching { api.similar(session, item.id) }.getOrDefault(emptyList())
 				addCardRow("More like this", similar, CardStyle.POSTER)
 			}
 		}
+	}
+
+	/** Rows glide in as they load (hardware layer; off with Settings → Appearance → Animations). */
+	private fun addSection(row: View) {
+		sections.addView(row)
+		if (!prefs.animations) return
+		row.alpha = 0f
+		row.translationY = Ui.dp(this, 20).toFloat()
+		row.animate().alpha(1f).translationY(0f).setDuration(260L)
+			.setInterpolator(android.view.animation.DecelerateInterpolator(1.5f)).withLayer().start()
+	}
+
+	private suspend fun showSeasons(seriesId: String, preferredSeasonId: String?) {
+		val seasons = runCatching { api.seasons(session, seriesId) }.getOrDefault(emptyList())
+		if (seasons.isEmpty()) {
+			selectedSeasonId = preferredSeasonId
+			addEpisodeRow(seriesId, preferredSeasonId)
+			return
+		}
+		selectedSeasonId = seasons.firstOrNull { it.id == preferredSeasonId }?.id ?: seasons.first().id
+		addSeasonRow(seriesId, seasons)
+		addEpisodeRow(seriesId, selectedSeasonId)
 	}
 
 	private var seasonStrip: LinearLayout? = null
@@ -323,14 +329,19 @@ class DetailActivity : BaseActivity() {
 			}
 		}
 		seasonStrip = strip
-		sections.addView(row)
+		// Bring the selected season into view.
+		strip.post {
+			val selected = (0 until strip.childCount).map { strip.getChildAt(it) }.firstOrNull { it.isSelected }
+			if (selected != null) (strip.parent as? View)?.scrollTo((selected.left - Ui.dp(this, 24)).coerceAtLeast(0), 0)
+		}
+		addSection(row)
 	}
 
 	private suspend fun addEpisodeRow(seriesId: String, seasonId: String?, title: String = "Episodes") {
 		val (row, strip) = cards.row(title, null)
 		episodeStrip = strip
 		episodeSeriesId = seriesId
-		sections.addView(row)
+		addSection(row)
 		fillEpisodes(seriesId, seasonId)
 	}
 
@@ -380,6 +391,6 @@ class DetailActivity : BaseActivity() {
 			card.setOnClickListener { start(this, entry.id) }
 			strip.addView(card)
 		}
-		sections.addView(row)
+		addSection(row)
 	}
 }

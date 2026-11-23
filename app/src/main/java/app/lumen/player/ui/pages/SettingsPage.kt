@@ -26,7 +26,8 @@ class SettingsPage(host: MainActivity, private val scrollToAccount: Boolean = fa
 		setPadding(Ui.dp(host, 44), Ui.dp(host, 30), Ui.dp(host, 44), Ui.dp(host, 80))
 	}
 	override val view: View = scroll
-	private val builder = PanelBuilder(list)
+	private val rows = LinearLayout(host).apply { orientation = LinearLayout.VERTICAL }
+	private val rowsBuilder = PanelBuilder(rows)
 	private val prefs: Prefs get() = host.prefs
 	private var appearanceChanged = false
 
@@ -40,20 +41,95 @@ class SettingsPage(host: MainActivity, private val scrollToAccount: Boolean = fa
 		if (appearanceChanged) host.restart()
 	}
 
-	override fun focusFirst(): Boolean = builder.initialFocus()?.requestFocus() == true
+	override fun focusFirst(): Boolean = sectionPills[current]?.requestFocus() == true
 
 	private fun appearance(change: () -> Unit) {
 		change()
 		appearanceChanged = true
 	}
 
+	/** Sections shown as tabs, so the list stays short and the remote never runs off the end. */
+	private enum class Section(val label: String) {
+		USERS("Users"), APPEARANCE("Appearance"), PLAYBACK("Playback"), SUBTITLES("Subtitles & audio"), LISERVER("Li'Server"), ABOUT("About")
+	}
+
+	private val sectionPills = mutableMapOf<Section, View>()
+
 	private fun build() {
-		val b = builder
-		b.clear()
+		list.removeAllViews()
 		list.addView(host.cards.heading("Settings", null, 40f))
 
-		// Account
-		b.header("Users")
+		// Updates first: one press away.
+		val updates = LinearLayout(host).apply {
+			orientation = LinearLayout.HORIZONTAL
+			gravity = android.view.Gravity.CENTER_VERTICAL
+			setPadding(Ui.dp(host, 6), Ui.dp(host, 14), 0, Ui.dp(host, 4))
+		}
+		updates.addView(android.widget.TextView(host).apply {
+			text = "Lolish's Project ${BuildConfig.VERSION_NAME}"
+			setTextColor(androidx.core.content.ContextCompat.getColor(host, app.lumen.player.R.color.lumen_text_2))
+			setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 15f)
+			setPadding(0, 0, Ui.dp(host, 18), 0)
+		})
+		app.lumen.player.ui.Pills.create(updates, "Check for updates", app.lumen.player.R.drawable.ic_refresh).setOnClickListener { host.checkForUpdates() }
+		val auto = app.lumen.player.ui.Pills.create(updates, autoLabel())
+		auto.isSelected = prefs.autoUpdateCheck
+		auto.setOnClickListener {
+			prefs.autoUpdateCheck = !prefs.autoUpdateCheck
+			auto.text = autoLabel()
+			auto.isSelected = prefs.autoUpdateCheck
+		}
+		list.addView(updates)
+
+		// Section tabs
+		val tabs = LinearLayout(host).apply {
+			orientation = LinearLayout.HORIZONTAL
+			setPadding(Ui.dp(host, 6), Ui.dp(host, 16), 0, Ui.dp(host, 10))
+		}
+		val tabScroll = android.widget.HorizontalScrollView(host).apply {
+			isHorizontalScrollBarEnabled = false
+			clipToPadding = false
+			addView(tabs)
+		}
+		sectionPills.clear()
+		Section.entries.forEach { s ->
+			val pill = app.lumen.player.ui.Pills.create(tabs, s.label)
+			pill.isSelected = s == current
+			pill.setOnClickListener { showSection(s, focusList = true) }
+			sectionPills[s] = pill
+		}
+		list.addView(tabScroll)
+		list.addView(rows)
+		showSection(current, focusList = false)
+	}
+
+	private fun autoLabel() = if (prefs.autoUpdateCheck) "Auto-check: on" else "Auto-check: off"
+
+	private fun showSection(section: Section, focusList: Boolean) {
+		current = section
+		sectionPills.forEach { (key, pill) -> pill.isSelected = key == section }
+		val b = rowsBuilder
+		b.clear()
+		when (section) {
+			Section.USERS -> buildUsers(b)
+			Section.APPEARANCE -> buildAppearance(b)
+			Section.PLAYBACK -> buildPlayback(b)
+			Section.SUBTITLES -> buildSubtitles(b)
+			Section.LISERVER -> buildLiServer(b)
+			Section.ABOUT -> buildAbout(b)
+		}
+		if (prefs.animations) {
+			for (i in 0 until minOf(rows.childCount, 8)) {
+				val child = rows.getChildAt(i)
+				child.alpha = 0f
+				child.translationY = Ui.dp(host, 10).toFloat()
+				child.animate().alpha(1f).translationY(0f).setStartDelay(i * 25L).setDuration(180L).withLayer().start()
+			}
+		}
+		if (focusList) rowsBuilder.initialFocus()?.requestFocus()
+	}
+
+	private fun buildUsers(b: PanelBuilder) {
 		val profiles = prefs.accounts
 		b.action("Switch user", "Who's watching? · ${profiles.size} saved on this TV", prefs.userName ?: "") { host.switchUser() }
 		b.action("Add user", "Sign in another Jellyfin user and keep both") { host.addUser() }
@@ -74,8 +150,9 @@ class SettingsPage(host: MainActivity, private val scrollToAccount: Boolean = fa
 			}
 		}
 
-		// Appearance
-		b.header("Appearance")
+	}
+
+	private fun buildAppearance(b: PanelBuilder) {
 		b.stepper("Poster size", value = { SIZES4[prefs.posterSize.coerceIn(0, 3)] }) { d, _ ->
 			appearance { prefs.posterSize = (prefs.posterSize + d).coerceIn(0, 3) }
 		}
@@ -90,6 +167,9 @@ class SettingsPage(host: MainActivity, private val scrollToAccount: Boolean = fa
 				val index = (TEXT_SCALES.indexOf(prefs.textScale).takeIf { it >= 0 } ?: 2) + d
 				prefs.textScale = TEXT_SCALES[index.coerceIn(0, TEXT_SCALES.lastIndex)]
 			}
+		}
+		b.stepper("Sidebar size", "Compact fits more on screen", value = { SIDEBAR_SIZES[prefs.sidebarSize.coerceIn(0, 2)] }) { d, _ ->
+			appearance { prefs.sidebarSize = (prefs.sidebarSize + d).coerceIn(0, 2) }
 		}
 		b.stepper("Sidebar", value = { SIDEBAR[prefs.sidebarMode.coerceIn(0, 2)] }) { d, _ ->
 			appearance { prefs.sidebarMode = (prefs.sidebarMode + d + 3) % 3 }
@@ -109,10 +189,12 @@ class SettingsPage(host: MainActivity, private val scrollToAccount: Boolean = fa
 		b.toggle("Home: Latest per library", isOn = { prefs.rowLatest }) { appearance { prefs.rowLatest = it } }
 		b.toggle("Home: Upcoming", isOn = { prefs.rowUpcoming }) { appearance { prefs.rowUpcoming = it } }
 		b.toggle("Home: Favorites", isOn = { prefs.rowFavorites }) { appearance { prefs.rowFavorites = it } }
+		b.toggle("Animations", "Page, row and button motion", isOn = { prefs.animations }) { appearance { prefs.animations = it } }
 		b.action("Apply appearance now", "Otherwise applied when you leave Settings") { host.restart() }
 
-		// Playback
-		b.header("Playback")
+	}
+
+	private fun buildPlayback(b: PanelBuilder) {
 		b.stepper("Default player", value = { PlayerMode.fromName(prefs.defaultPlayerMode)?.label ?: PlayerMode.EXO_DIRECT.label }) { d, _ ->
 			val modes = PlayerMode.entries
 			val current = PlayerMode.fromName(prefs.defaultPlayerMode) ?: PlayerMode.EXO_DIRECT
@@ -142,8 +224,9 @@ class SettingsPage(host: MainActivity, private val scrollToAccount: Boolean = fa
 			prefs.engineMode = values[(prefs.engineMode.ordinal + d + values.size) % values.size]
 		}
 
-		// Subtitles
-		b.header("Subtitles")
+	}
+
+	private fun buildSubtitles(b: PanelBuilder) {
 		b.stepper("Show subtitles", value = { SUBTITLE_MODES[prefs.subtitleMode.coerceIn(0, 2)] }) { d, _ ->
 			prefs.subtitleMode = (prefs.subtitleMode + d + 3) % 3
 		}
@@ -170,24 +253,28 @@ class SettingsPage(host: MainActivity, private val scrollToAccount: Boolean = fa
 			prefs.preferredAudioLanguage = cycleLanguage(prefs.preferredAudioLanguage, d)
 		}
 
-		// Li'Server
-		b.header("Li'Server")
+	}
+
+	private fun buildLiServer(b: PanelBuilder) {
+		b.stepper("Open Li'Server as", "TV screen works with the remote; the website has every feature", value = { if (prefs.liServerUseWebsite) "Website" else "TV screen" }) { _, _ ->
+			appearance { prefs.liServerUseWebsite = !prefs.liServerUseWebsite }
+		}
 		b.action("Address", null, prefs.liServerUrl) {
 			Dialogs.input(host, "Li'Server address", prefs.liServerUrl, Prefs.DEFAULT_LISERVER) { value ->
 				if (value.isNotBlank()) prefs.liServerUrl = value
-				build()
+				showSection(Section.LISERVER, focusList = true)
 			}
 		}
 		b.action("Username", null, prefs.liServerUser ?: "Not saved") {
 			Dialogs.input(host, "Li'Server username", prefs.liServerUser, "") { value ->
 				prefs.liServerUser = value.ifBlank { null }
-				build()
+				showSection(Section.LISERVER, focusList = true)
 			}
 		}
 		b.action("Password", "Stored encrypted on this device", if (prefs.liServerPasswordEncrypted != null) "Saved" else "Not saved") {
 			Dialogs.input(host, "Li'Server password", "", "", password = true) { value ->
 				prefs.liServerPasswordEncrypted = if (value.isBlank()) null else SecureStore.encrypt(value)
-				build()
+				showSection(Section.LISERVER, focusList = true)
 			}
 		}
 		b.toggle("Sign in automatically", isOn = { prefs.liServerAutoLogin }) { prefs.liServerAutoLogin = it }
@@ -198,25 +285,23 @@ class SettingsPage(host: MainActivity, private val scrollToAccount: Boolean = fa
 			Dialogs.confirm(host, "Forget Li'Server login?", "You will need to sign in again.", "Forget") {
 				prefs.liServerUser = null
 				prefs.liServerPasswordEncrypted = null
+				prefs.liServerCookies = emptyMap()
+				prefs.liServerCsrf = null
 				CookieManager.getInstance().removeAllCookies(null)
 				CookieManager.getInstance().flush()
-				build()
+				showSection(Section.LISERVER, focusList = true)
 				host.toast("Li'Server login cleared")
 			}
 		}
 
-		// About
-		b.header("About")
-		b.action("Check for updates", "Installed: ${BuildConfig.VERSION_NAME}", "Check") { host.checkForUpdates() }
-		b.toggle("Check for updates automatically", "Looks for new builds on GitHub when the app starts", isOn = { prefs.autoUpdateCheck }) {
-			prefs.autoUpdateCheck = it
-		}
+	}
+
+	private fun buildAbout(b: PanelBuilder) {
 		b.note(
 			"Lolish's Project ${BuildConfig.VERSION_NAME} (${host.packageName})\n" +
 				"Also works as the external player for the Jellyfin app: Settings → Playback → Video player → External app."
 		)
 
-		if (scrollToAccount) list.post { builder.initialFocus()?.requestFocus() }
 	}
 
 	private fun languageLabel(code: String): String = LANGUAGES.firstOrNull { it.first == code }?.second ?: code
@@ -227,6 +312,9 @@ class SettingsPage(host: MainActivity, private val scrollToAccount: Boolean = fa
 	}
 
 	private companion object {
+		/** Remembered while the app runs, so Settings reopens where you were (e.g. after "Apply"). */
+		var current = Section.USERS
+		val SIDEBAR_SIZES = listOf("Compact", "Normal", "Large")
 		val SIZES4 = listOf("Small", "Medium", "Large", "Extra large")
 		val SIZES3 = listOf("Small", "Medium", "Large")
 		val TEXT_SCALES = listOf(85, 90, 100, 110, 120, 130)

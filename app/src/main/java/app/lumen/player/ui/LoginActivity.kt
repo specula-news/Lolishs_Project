@@ -206,7 +206,7 @@ class LoginActivity : BaseActivity() {
 		status.text = "Signing in…"
 		job = lifecycleScope.launch {
 			try {
-				onSignedIn(api.authenticateByName(base, name, pass, prefs.deviceIdForUser(base, name)))
+				onSignedIn(api.authenticateByName(base, name, pass, prefs.deviceIdForUser(base, name)), pass)
 			} catch (e: CancellationException) {
 				throw e
 			} catch (e: ApiException) {
@@ -234,7 +234,7 @@ class LoginActivity : BaseActivity() {
 					delay(3_000L)
 					authorized = api.quickConnectAuthorized(base, secret, deviceId)
 				}
-				onSignedIn(api.authenticateWithQuickConnect(base, secret, deviceId))
+				onSignedIn(api.authenticateWithQuickConnect(base, secret, deviceId), null)
 			} catch (e: CancellationException) {
 				throw e
 			} catch (e: ApiException) {
@@ -249,7 +249,10 @@ class LoginActivity : BaseActivity() {
 		}
 	}
 
-	private fun onSignedIn(result: SignedIn) {
+	/** [password] is kept encrypted so the app can sign in again by itself if the server drops the session. */
+	private fun onSignedIn(result: SignedIn, password: String?) {
+		val previous = prefs.accounts.firstOrNull { it.userId == result.session.userId && JellyfinApi.normalizeBaseUrl(it.serverUrl) == base }
+		val encrypted = password?.let { app.lumen.player.util.SecureStore.encrypt(it) } ?: previous?.encryptedPassword
 		prefs.rememberUser(base, result.userName)
 		prefs.saveAccount(
 			Account(
@@ -260,6 +263,7 @@ class LoginActivity : BaseActivity() {
 				token = result.session.token,
 				deviceId = result.deviceId,
 				imageTag = result.imageTag,
+				encryptedPassword = encrypted,
 			)
 		)
 		openMain()

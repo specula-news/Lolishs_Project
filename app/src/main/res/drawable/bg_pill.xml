@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<selector xmlns:android="http://schemas.android.com/apk/res/android">
+<selector xmlns:android="http://schemas.android.com/apk/res/android"
+	android:enterFadeDuration="140"
+	android:exitFadeDuration="180">
 	<item android:state_focused="true">
 		<shape android:shape="rectangle">
 			<corners android:radius="24dp" />

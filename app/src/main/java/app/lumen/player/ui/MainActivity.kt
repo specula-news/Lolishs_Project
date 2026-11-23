@@ -23,6 +23,7 @@ import app.lumen.player.jellyfin.Session
 import app.lumen.player.ui.pages.FavoritesPage
 import app.lumen.player.ui.pages.HomePage
 import app.lumen.player.ui.pages.LibraryPage
+import app.lumen.player.ui.pages.LiServerPage
 import app.lumen.player.ui.pages.Page
 import app.lumen.player.ui.pages.SearchPage
 import app.lumen.player.ui.pages.SettingsPage
@@ -134,15 +135,47 @@ class MainActivity : BaseActivity() {
 		if (::updates.isInitialized) updates.onResume()
 	}
 
-	/** Keeps the saved profile's name and avatar in step with the server. */
+	/**
+	 * Keeps the saved profile's name and avatar in step with the server, and notices a sign-in the
+	 * server no longer accepts (e.g. after a Jellyfin update): it signs in again by itself with the
+	 * saved password, or asks for the password once.
+	 */
 	private fun refreshProfile() {
 		val account = prefs.activeAccount ?: return
 		lifecycleScope.launch {
-			val (name, tag) = runCatching { api.me(session) }.getOrNull() ?: return@launch
+			val me = try {
+				api.me(session)
+			} catch (e: kotlinx.coroutines.CancellationException) {
+				throw e
+			} catch (e: app.lumen.player.jellyfin.ApiException) {
+				if (e.code == 401) renewSession(account)
+				return@launch
+			} catch (e: Exception) {
+				return@launch // offline / server restarting: keep the session, try next time
+			}
+			val (name, tag) = me
 			if (name != account.userName || tag != account.imageTag) {
 				prefs.saveAccount(account.copy(userName = name, imageTag = tag))
 			}
 		}
+	}
+
+	private suspend fun renewSession(account: app.lumen.player.util.Account) {
+		val renewed = runCatching { api.renew(account) }.getOrNull()
+		if (renewed != null) {
+			prefs.saveAccount(renewed)
+			toast("Signed in again as ${renewed.userName}")
+			handler.postDelayed({ restart() }, 900L)
+			return
+		}
+		// No saved password (Quick Connect) or it changed: ask once, the name is remembered.
+		prefs.removeAccount(account)
+		android.app.AlertDialog.Builder(this)
+			.setTitle("Sign in again")
+			.setMessage("Jellyfin no longer accepts the saved sign-in for ${account.userName} (this can happen after a server update). Sign in once more — it will be remembered.")
+			.setCancelable(false)
+			.setPositiveButton("Sign in") { _, _ -> addUser() }
+			.show()
 	}
 
 	// Sidebar -------------------------------------------------------------------------------------
@@ -167,8 +200,12 @@ class MainActivity : BaseActivity() {
 		}
 		specs += NavSpec("favorites", R.drawable.ic_favorite, "Favorites", factory = { FavoritesPage(this) })
 		specs += NavSpec("upcoming", R.drawable.ic_event, "Upcoming Shows", factory = { UpcomingPage(this) })
-		specs += NavSpec("liserver", R.drawable.ic_download, "Li'Server", subtitle = "Search & download",
-			action = { startActivity(Intent(this, TorrentActivity::class.java)) })
+		specs += if (prefs.liServerUseWebsite) {
+			NavSpec("liserver", R.drawable.ic_download, "Li'Server", subtitle = "Website",
+				action = { startActivity(Intent(this, TorrentActivity::class.java)) })
+		} else {
+			NavSpec("liserver", R.drawable.ic_download, "Li'Server", subtitle = "Search & download", factory = { LiServerPage(this) })
+		}
 
 		// The user's order (Settings first by default); items it doesn't know yet keep their default place at the end.
 		val order = prefs.navOrder
@@ -186,6 +223,9 @@ class MainActivity : BaseActivity() {
 		applySidebarMode(sidebar.findFocus() != null)
 	}
 
+	/** Sidebar icons follow "Icon size", a bit smaller in the compact sidebar. */
+	private fun sidebarIconDp(): Int = (Ui.iconDp(prefs) - if (prefs.sidebarSize == 0) 2 else 0).coerceAtLeast(16)
+
 	private fun startItem(): NavItem =
 		navItems.firstOrNull { it.key == "home" } ?: navItems.first { it.factory != null }
 
@@ -202,9 +242,10 @@ class MainActivity : BaseActivity() {
 			background = ContextCompat.getDrawable(this@MainActivity, R.drawable.bg_nav)
 			isFocusable = true
 			isClickable = true
-			setPadding(Ui.dp(context, 14), Ui.dp(context, 11), Ui.dp(context, 14), Ui.dp(context, 11))
+			val vertical = when (prefs.sidebarSize) { 0 -> 6; 2 -> 13; else -> 10 }
+			setPadding(Ui.dp(context, 12), Ui.dp(context, vertical), Ui.dp(context, 12), Ui.dp(context, vertical))
 		}
-		val iconSize = Ui.dp(this, Ui.iconDp(prefs))
+		val iconSize = Ui.dp(this, sidebarIconDp())
 		val image = ImageView(this).apply {
 			setImageResource(icon)
 			imageTintList = ContextCompat.getColorStateList(this@MainActivity, R.color.nav_text)
@@ -219,7 +260,7 @@ class MainActivity : BaseActivity() {
 			text = label
 			maxLines = 1
 			typeface = Ui.bold(context)
-			setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+			setTextSize(TypedValue.COMPLEX_UNIT_SP, when (prefs.sidebarSize) { 0 -> 14f; 2 -> 18f; else -> 16f })
 			setTextColor(ContextCompat.getColorStateList(this@MainActivity, R.color.nav_text))
 			isDuplicateParentStateEnabled = true
 		}
@@ -228,7 +269,7 @@ class MainActivity : BaseActivity() {
 			texts.addView(TextView(this).apply {
 				text = subtitle
 				maxLines = 1
-				setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+				setTextSize(TypedValue.COMPLEX_UNIT_SP, if (prefs.sidebarSize == 0) 11f else 12f)
 				setTextColor(ContextCompat.getColor(this@MainActivity, R.color.lumen_text_3))
 			})
 		}
@@ -236,7 +277,7 @@ class MainActivity : BaseActivity() {
 			marginStart = Ui.dp(this@MainActivity, 16)
 		})
 		val params = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-		params.bottomMargin = Ui.dp(this, 4)
+		params.bottomMargin = Ui.dp(this, if (prefs.sidebarSize == 0) 2 else 4)
 		parent.addView(row, params)
 
 		val item = NavItem(row, labelView, key, factory, action)
@@ -362,6 +403,13 @@ class MainActivity : BaseActivity() {
 		page = newPage
 		content.addView(newPage.view, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
 		setBackdropUrl(null)
+		// Page change: a short fade + rise on a hardware layer (no layout work while it runs).
+		if (prefs.animations) {
+			newPage.view.alpha = 0f
+			newPage.view.translationY = Ui.dp(this, 18).toFloat()
+			newPage.view.animate().alpha(1f).translationY(0f).setDuration(240L)
+				.setInterpolator(android.view.animation.DecelerateInterpolator(1.6f)).withLayer().start()
+		}
 		newPage.onShow()
 		if (focusContent) handler.postDelayed({ newPage.focusFirst() }, 120L)
 	}
@@ -377,7 +425,8 @@ class MainActivity : BaseActivity() {
 			sidebarExpanded = expanded
 			val iconPx = Ui.dp(this, Ui.iconDp(prefs))
 			sidebar.layoutParams = sidebar.layoutParams.apply {
-				width = if (expanded) Ui.dp(this@MainActivity, 250) else iconPx + Ui.dp(this@MainActivity, 14 * 2 + 14 * 2)
+				val full = when (prefs.sidebarSize) { 0 -> 214; 2 -> 280; else -> 250 }
+				width = if (expanded) Ui.dp(this@MainActivity, full) else iconPx + Ui.dp(this@MainActivity, 12 * 2 + 14 * 2)
 			}
 		}
 		brandText.visibility = if (expanded) View.VISIBLE else View.GONE
@@ -407,6 +456,13 @@ class MainActivity : BaseActivity() {
 			when (event.keyCode) {
 				KeyEvent.KEYCODE_DPAD_RIGHT -> if (inSidebar) {
 					if (page?.focusFirst() == true) return true
+				}
+				KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> if (focused != null) {
+					// UP / DOWN never jump between the sidebar and the page (e.g. past the last Settings row).
+					if (super.dispatchKeyEvent(event)) return true
+					val next = focused.focusSearch(if (event.keyCode == KeyEvent.KEYCODE_DPAD_UP) View.FOCUS_UP else View.FOCUS_DOWN)
+					if (next == null || isInside(next, sidebar) != inSidebar) return true
+					return false
 				}
 				KeyEvent.KEYCODE_DPAD_LEFT -> if (!inSidebar && focused != null) {
 					// Let the focused row use LEFT first (e.g. the size steppers in Settings).

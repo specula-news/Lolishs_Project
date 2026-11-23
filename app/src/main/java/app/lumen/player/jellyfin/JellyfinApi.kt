@@ -163,6 +163,14 @@ class JellyfinApi(private val prefs: Prefs) {
 		return (json.str("Name") ?: "User") to json.str("PrimaryImageTag")
 	}
 
+	/** Signs a saved profile in again with its saved password; null when there is none or it's wrong. */
+	suspend fun renew(account: app.lumen.player.util.Account): app.lumen.player.util.Account? {
+		val password = app.lumen.player.util.SecureStore.decrypt(account.encryptedPassword) ?: return null
+		val base = normalizeBaseUrl(account.serverUrl)
+		val result = authenticateByName(base, account.userName, password, account.deviceId)
+		return account.copy(token = result.session.token, userId = result.session.userId, userName = result.userName, imageTag = result.imageTag ?: account.imageTag)
+	}
+
 	/** Revokes a profile's token on the server (best effort). */
 	suspend fun logout(baseUrl: String, token: String, deviceId: String) {
 		runCatching { request("POST", "${normalizeBaseUrl(baseUrl)}/Sessions/Logout", token, body = "", deviceId = deviceId) }

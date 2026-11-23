@@ -132,6 +132,16 @@ class Prefs(context: Context) {
 		get() = int("ui_text_scale", 100)
 		set(value) = putInt("ui_text_scale", value)
 
+	/** Page / row / button motion (off = everything appears instantly). */
+	var animations: Boolean
+		get() = bool("ui_animations", true)
+		set(value) = putBool("ui_animations", value)
+
+	/** Sidebar row size: 0 = compact (default), 1 = normal, 2 = large. */
+	var sidebarSize: Int
+		get() = int("ui_sidebar_size", 0)
+		set(value) = putInt("ui_sidebar_size", value)
+
 	/** 0 = expanded, 1 = icons only, 2 = expand when focused. */
 	var sidebarMode: Int
 		get() = int("ui_sidebar_mode", 2)
@@ -348,6 +358,23 @@ class Prefs(context: Context) {
 	var liServerAutoLogin: Boolean
 		get() = bool("liserver_auto_login", true)
 		set(value) = putBool("liserver_auto_login", value)
+
+	/** Session cookies of the native Li'Server screen (kept across restarts and app updates). */
+	var liServerCookies: Map<String, String>
+		get() = runCatching {
+			val o = JSONObject(str("liserver_cookies") ?: "{}")
+			o.keys().asSequence().associateWith { o.optString(it) }
+		}.getOrDefault(emptyMap())
+		set(value) = putStr("liserver_cookies", JSONObject(value as Map<*, *>).toString())
+
+	var liServerCsrf: String?
+		get() = str("liserver_csrf")
+		set(value) = putStr("liserver_csrf", value)
+
+	/** Open the Li'Server website instead of the TV screen. */
+	var liServerUseWebsite: Boolean
+		get() = bool("liserver_use_website", false)
+		set(value) = putBool("liserver_use_website", value)
 
 	/** Page zoom in percent. */
 	var liServerZoom: Int

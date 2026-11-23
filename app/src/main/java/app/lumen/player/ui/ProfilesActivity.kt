@@ -84,6 +84,16 @@ class ProfilesActivity : BaseActivity() {
 			if (account.key == prefs.lastAccountKey) focus = tile
 		}
 		val add = tile("Add user", "+", null, null)
+		if (prefs.animations) {
+			for (i in 0 until row.childCount) {
+				val child = row.getChildAt(i)
+				child.alpha = 0f
+				child.scaleX = 0.85f
+				child.scaleY = 0.85f
+				child.animate().alpha(1f).scaleX(1f).scaleY(1f).setStartDelay(80L + i * 60L).setDuration(260L)
+					.setInterpolator(android.view.animation.OvershootInterpolator(1.2f)).withLayer().start()
+			}
+		}
 		add.setOnClickListener {
 			startActivity(Intent(this, LoginActivity::class.java))
 			finish()
