@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+	android:layout_width="match_parent"
+	android:layout_height="match_parent"
+	android:background="@color/lumen_bg">
+
+	<ImageView
+		android:id="@+id/backdrop"
+		android:layout_width="match_parent"
+		android:layout_height="match_parent"
+		android:alpha="0"
+		android:importantForAccessibility="no"
+		android:scaleType="centerCrop" />
+
+	<View
+		android:layout_width="match_parent"
+		android:layout_height="match_parent"
+		android:background="@drawable/scrim_hero" />
+
+	<ScrollView
+		android:id="@+id/scroll"
+		android:layout_width="match_parent"
+		android:layout_height="match_parent"
+		android:clipToPadding="false"
+		android:scrollbars="none">
+
+		<LinearLayout
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:clipChildren="false"
+			android:clipToPadding="false"
+			android:orientation="vertical"
+			android:paddingStart="64dp"
+			android:paddingTop="52dp"
+			android:paddingBottom="64dp">
+
+			<ImageView
+				android:id="@+id/logo"
+				android:layout_width="wrap_content"
+				android:layout_height="110dp"
+				android:adjustViewBounds="true"
+				android:importantForAccessibility="no"
+				android:maxWidth="560dp"
+				android:scaleType="fitStart"
+				android:visibility="gone" />
+
+			<TextView
+				android:id="@+id/title"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:fontFamily="@font/fraunces_black_italic"
+				android:maxLines="2"
+				android:maxWidth="900dp"
+				android:textColor="@color/lumen_text"
+				android:textSize="46sp" />
+
+			<TextView
+				android:id="@+id/subtitle"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:layout_marginTop="4dp"
+				android:fontFamily="@font/dmsans_bold"
+				android:textColor="@color/lumen_accent"
+				android:textSize="18sp"
+				android:visibility="gone" />
+
+			<TextView
+				android:id="@+id/meta"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:layout_marginTop="12dp"
+				android:fontFamily="@font/dmsans_medium"
+				android:textColor="@color/lumen_text_2"
+				android:textSize="16sp" />
+
+			<TextView
+				android:id="@+id/genres"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:layout_marginTop="4dp"
+				android:textColor="@color/lumen_text_3"
+				android:textSize="15sp" />
+
+			<TextView
+				android:id="@+id/overview"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:layout_marginTop="16dp"
+				android:ellipsize="end"
+				android:lineSpacingMultiplier="1.25"
+				android:maxLines="5"
+				android:maxWidth="820dp"
+				android:textColor="@color/lumen_text"
+				android:textSize="17sp" />
+
+			<TextView
+				android:id="@+id/media_info"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:layout_marginTop="12dp"
+				android:background="@drawable/bg_chip_green"
+				android:fontFamily="@font/dmsans_medium"
+				android:paddingStart="12dp"
+				android:paddingTop="6dp"
+				android:paddingEnd="12dp"
+				android:paddingBottom="6dp"
+				android:textColor="@color/lumen_green"
+				android:textSize="13sp"
+				android:visibility="gone" />
+
+			<LinearLayout
+				android:id="@+id/actions"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:layout_marginTop="26dp"
+				android:clipChildren="false"
+				android:orientation="horizontal" />
+
+			<LinearLayout
+				android:id="@+id/sections"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:layout_marginTop="18dp"
+				android:clipChildren="false"
+				android:clipToPadding="false"
+				android:orientation="vertical" />
+		</LinearLayout>
+	</ScrollView>
+
+	<ProgressBar
+		android:id="@+id/loading"
+		android:layout_width="56dp"
+		android:layout_height="56dp"
+		android:layout_gravity="center"
+		android:indeterminateTint="@color/lumen_accent" />
+</FrameLayout>

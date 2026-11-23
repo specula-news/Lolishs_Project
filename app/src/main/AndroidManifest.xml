@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+	<uses-permission android:name="android.permission.INTERNET" />
+	<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+	<uses-permission android:name="android.permission.WAKE_LOCK" />
+
+	<!-- Runs on Android TV / Google TV / Fire TV, but does not require any of these. -->
+	<uses-feature
+		android:name="android.software.leanback"
+		android:required="false" />
+	<uses-feature
+		android:name="android.hardware.touchscreen"
+		android:required="false" />
+
+	<application
+		android:allowBackup="true"
+		android:banner="@drawable/banner"
+		android:icon="@mipmap/ic_launcher"
+		android:label="${appLabel}"
+		android:largeHeap="true"
+		android:networkSecurityConfig="@xml/network_security_config"
+		android:supportsRtl="true"
+		android:theme="@style/Theme.Lumen"
+		android:usesCleartextTraffic="true">
+
+		<activity
+			android:name=".ui.MainActivity"
+			android:configChanges="keyboard|keyboardHidden|navigation"
+			android:exported="true"
+			android:windowSoftInputMode="adjustNothing">
+			<intent-filter>
+				<action android:name="android.intent.action.MAIN" />
+				<category android:name="android.intent.category.LAUNCHER" />
+				<category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+			</intent-filter>
+		</activity>
+
+		<activity
+			android:name=".ui.LoginActivity"
+			android:exported="false"
+			android:windowSoftInputMode="adjustPan" />
+
+		<activity
+			android:name=".ui.DetailActivity"
+			android:configChanges="keyboard|keyboardHidden|navigation"
+			android:exported="false" />
+
+		<activity
+			android:name=".ui.TorrentActivity"
+			android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|smallestScreenSize|screenLayout|uiMode"
+			android:exported="false"
+			android:windowSoftInputMode="adjustResize" />
+
+		<activity
+			android:name=".ui.PlayerActivity"
+			android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden|navigation|uiMode|density"
+			android:exported="true"
+			android:label="${appLabel}"
+			android:launchMode="standard"
+			android:screenOrientation="sensorLandscape"
+			android:theme="@style/Theme.Lumen.Player">
+
+			<!-- Network streams (Jellyfin, Plex, Emby, plain HTTP) -->
+			<intent-filter>
+				<action android:name="android.intent.action.VIEW" />
+				<category android:name="android.intent.category.DEFAULT" />
+				<category android:name="android.intent.category.BROWSABLE" />
+				<data android:scheme="http" />
+				<data android:scheme="https" />
+				<data android:mimeType="video/*" />
+				<data android:mimeType="audio/*" />
+				<data android:mimeType="application/x-mpegURL" />
+				<data android:mimeType="application/vnd.apple.mpegurl" />
+				<data android:mimeType="application/octet-stream" />
+			</intent-filter>
+
+			<!-- Local files and file-manager / content provider URIs -->
+			<intent-filter>
+				<action android:name="android.intent.action.VIEW" />
+				<category android:name="android.intent.category.DEFAULT" />
+				<data android:scheme="file" />
+				<data android:scheme="content" />
+				<data android:mimeType="video/*" />
+				<data android:mimeType="audio/*" />
+			</intent-filter>
+		</activity>
+	</application>
+</manifest>

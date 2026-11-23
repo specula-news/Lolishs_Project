@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+	android:layout_width="match_parent"
+	android:layout_height="match_parent"
+	android:background="@color/lumen_bg">
+
+	<app.lumen.player.ui.CursorLayout
+		android:id="@+id/cursor"
+		android:layout_width="match_parent"
+		android:layout_height="match_parent">
+
+		<WebView
+			android:id="@+id/web"
+			android:layout_width="match_parent"
+			android:layout_height="match_parent"
+			android:background="@color/lumen_bg" />
+	</app.lumen.player.ui.CursorLayout>
+
+	<ProgressBar
+		android:id="@+id/progress"
+		style="@android:style/Widget.ProgressBar.Horizontal"
+		android:layout_width="match_parent"
+		android:layout_height="3dp"
+		android:layout_gravity="top"
+		android:max="100"
+		android:progressDrawable="@drawable/bg_progress_track" />
+
+	<LinearLayout
+		android:id="@+id/hint"
+		android:layout_width="wrap_content"
+		android:layout_height="wrap_content"
+		android:layout_gravity="bottom|center_horizontal"
+		android:layout_marginBottom="28dp"
+		android:background="@drawable/bg_hud"
+		android:gravity="center_vertical"
+		android:orientation="horizontal"
+		android:paddingStart="18dp"
+		android:paddingTop="10dp"
+		android:paddingEnd="18dp"
+		android:paddingBottom="10dp">
+
+		<ImageView
+			android:layout_width="22dp"
+			android:layout_height="22dp"
+			android:importantForAccessibility="no"
+			android:src="@drawable/ic_mouse"
+			android:tint="@color/lumen_accent" />
+
+		<TextView
+			android:id="@+id/hint_text"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:layout_marginStart="12dp"
+			android:fontFamily="@font/dmsans_medium"
+			android:textColor="@color/lumen_text"
+			android:textSize="15sp" />
+	</LinearLayout>
+
+	<LinearLayout
+		android:id="@+id/error"
+		android:layout_width="560dp"
+		android:layout_height="wrap_content"
+		android:layout_gravity="center"
+		android:background="@drawable/bg_hud"
+		android:orientation="vertical"
+		android:padding="30dp"
+		android:visibility="gone">
+
+		<TextView
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:fontFamily="@font/fraunces_black_italic"
+			android:text="Li’Server isn’t reachable"
+			android:textColor="@color/lumen_text"
+			android:textSize="24sp" />
+
+		<TextView
+			android:id="@+id/error_text"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_marginTop="8dp"
+			android:textColor="@color/lumen_text_2"
+			android:textSize="15sp" />
+
+		<LinearLayout
+			android:id="@+id/error_actions"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:layout_marginTop="20dp"
+			android:orientation="horizontal" />
+	</LinearLayout>
+</FrameLayout>

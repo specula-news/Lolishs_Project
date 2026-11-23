@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Li'Server palette -->
+<resources>
+	<color name="lumen_bg">#FF131110</color>
+	<color name="lumen_sidebar">#FF171412</color>
+	<color name="lumen_surface">#FF1D1A16</color>
+	<color name="lumen_surface_2">#FF27221C</color>
+	<color name="lumen_border">#FF3B342A</color>
+	<color name="lumen_panel">#F71D1A16</color>
+	<color name="lumen_accent">#FFF0A63A</color>
+	<color name="lumen_accent_2">#FFD9822B</color>
+	<color name="lumen_accent_dim">#FF382A18</color>
+	<color name="lumen_text">#FFF5EDDD</color>
+	<color name="lumen_text_2">#FFB3A895</color>
+	<color name="lumen_text_3">#FF7A7166</color>
+	<color name="lumen_track">#40F5EDDD</color>
+	<color name="lumen_buffer">#73F5EDDD</color>
+	<color name="lumen_focus">#FFF0A63A</color>
+	<color name="lumen_on_focus">#FF131110</color>
+	<color name="lumen_scrim">#E6000000</color>
+	<color name="lumen_divider">#FF2E2820</color>
+	<color name="lumen_segment">#B38ED3A2</color>
+	<color name="lumen_green">#FF8ED3A2</color>
+	<color name="lumen_green_bg">#FF2B3228</color>
+	<color name="lumen_red">#FFE5675A</color>
+</resources>
