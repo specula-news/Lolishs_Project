@@ -35,7 +35,10 @@ class SearchPage(host: MainActivity) : Page(host) {
 	private val input = EditText(host)
 	private val status = TextView(host)
 	private val grid = TvRecyclerView(host)
-	private val adapter = CardGridAdapter(host.cards, CardStyle.POSTER, { host.openItem(it) }, { host.setBackdrop(it) }, {})
+	private val adapter = CardGridAdapter(host.cards, CardStyle.POSTER, { host.openItem(it) }, { host.setBackdrop(it) }, {}) { item, card, focused ->
+		val frame = card.findViewById<android.widget.FrameLayout>(app.lumen.player.R.id.card_frame)
+		if (focused) host.preview.focus(item, frame, 2, inline = false) else host.preview.leave(frame)
+	}
 	private var searchJob: Job? = null
 
 	init {

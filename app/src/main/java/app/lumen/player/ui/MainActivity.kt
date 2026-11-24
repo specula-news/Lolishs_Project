@@ -71,6 +71,38 @@ class MainActivity : BaseActivity() {
 	/** Where pages are shown (the preview window lines up with it). */
 	val contentArea: View get() = content
 
+	private var shellAlpha = -1
+	private var sidebarAlpha = -1
+
+	/**
+	 * A card preview plays full screen behind the menu: the page fades out and the menu turns
+	 * see-through, so the video gets the whole screen. Any button brings everything back.
+	 */
+	fun setPreviewing(on: Boolean) {
+		content.animate().cancel()
+		content.animate().alpha(if (on) 0f else 1f).setDuration(if (on) 350L else 180L).start()
+		findViewById<View>(R.id.shell).background?.mutate()?.let { d ->
+			if (on) {
+				if (shellAlpha < 0) shellAlpha = d.alpha
+				d.alpha = 0
+			} else if (shellAlpha >= 0) {
+				d.alpha = shellAlpha
+				shellAlpha = -1
+			}
+		}
+		sidebar.background?.mutate()?.let { d ->
+			if (on) {
+				if (sidebarAlpha < 0) sidebarAlpha = d.alpha
+				d.alpha = (sidebarAlpha * 0.35f).toInt()
+			} else if (sidebarAlpha >= 0) {
+				d.alpha = sidebarAlpha
+				sidebarAlpha = -1
+			}
+		}
+		findViewById<View>(R.id.nav_divider).alpha = if (on) 0f else 1f
+		downloadMini?.view?.alpha = if (on) 0f else 1f
+	}
+
 	/** True when the buttons are on top (pages use this for LEFT / RIGHT at the edges). */
 	val topNavigation: Boolean get() = topNav
 	/** The clock floats in the top right corner (menu on the left); pages keep that corner free. */

@@ -247,14 +247,13 @@ class HomePage(host: MainActivity) : Page(host) {
 				host.cards.bind(card, item, row.style)
 				card.tag = "${row.key}|${item.id}"
 				card.setOnClickListener { host.openItem(item) }
-				val wide = row.style == CardStyle.THUMB
 				val frame = card.findViewById<FrameLayout>(R.id.card_frame)
 				Ui.focusScale(card, 1.07f) { focused ->
 					if (focused) {
 						host.setBackdrop(item)
-						// Wide cards play a preview in place of the artwork after a moment.
-						if (wide) host.preview.focus(item, frame, 2, inline = false)
-					} else if (wide) host.preview.leave(frame)
+						// Every movie / show plays a full-screen preview after a moment.
+						host.preview.focus(item, frame, 2, inline = false)
+					} else host.preview.leave(frame)
 				}
 				strip.addView(card)
 				if (card.tag == focusedId) refocus = card

@@ -30,8 +30,9 @@ import java.util.UUID
 
 /**
  * Streaming-app style previews. When a title stays focused for 3 seconds it starts playing from the
- * beginning: inside the Home banner, or for a card in a big window with its description. After 20
- * seconds it carries on in the real player (from where the preview is). Any button stops it.
+ * beginning: inside the Home banner, or for any card full screen behind the see-through menu, with its
+ * name and description at the bottom. After 20 seconds it carries on in the real player (from where
+ * the preview is). Any button stops it.
  */
 class PreviewController(private val host: MainActivity, private val root: FrameLayout) {
 
@@ -52,12 +53,13 @@ class PreviewController(private val host: MainActivity, private val root: FrameL
 	private var videoHeight = 9f
 	private var countdownLeft = 0
 
-	// The big preview window for cards: video on the right, title and description on the left.
+	// Full-screen preview for cards: the video fills the screen behind the (see-through) menu,
+	// name and description at the bottom.
 	private val panel = FrameLayout(host).apply {
-		background = ContextCompat.getDrawable(host, R.drawable.bg_feature)
-		clipToOutline = true
+		setBackgroundColor(0xFF000000.toInt())
 		visibility = View.GONE
 	}
+	private var panelShown = false
 	private val panelVideo = FrameLayout(host)
 	private val panelKind = text(12f, bold = true).apply {
 		letterSpacing = 0.2f
@@ -68,10 +70,11 @@ class PreviewController(private val host: MainActivity, private val root: FrameL
 		maxLines = 2
 		ellipsize = android.text.TextUtils.TruncateAt.END
 		setTextColor(0xFFFFFFFF.toInt())
-		setTextSize(TypedValue.COMPLEX_UNIT_SP, 34f)
+		setTextSize(TypedValue.COMPLEX_UNIT_SP, 38f)
+		setShadowLayer(12f, 0f, 2f, 0xAA000000.toInt())
 	}
 	private val panelFacts = text(14f, bold = true).apply { maxLines = 1; setPadding(0, Ui.dp(host, 8), 0, 0) }
-	private val panelOverview = text(15f).apply {
+	private val panelOverview = text(15.5f).apply {
 		maxLines = 3
 		ellipsize = android.text.TextUtils.TruncateAt.END
 		setLineSpacing(0f, 1.2f)
@@ -86,19 +89,33 @@ class PreviewController(private val host: MainActivity, private val root: FrameL
 
 	init {
 		panel.addView(panelVideo, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-		panel.addView(View(host).apply { background = ContextCompat.getDrawable(host, R.drawable.scrim_feature) },
-			FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+		// Dark at the top (menu) and the bottom (name and description), clear in the middle.
+		panel.addView(View(host).apply {
+			background = android.graphics.drawable.GradientDrawable(
+				android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,
+				intArrayOf(0x99000000.toInt(), 0x00000000),
+			)
+		}, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(host, 150), Gravity.TOP))
+		panel.addView(View(host).apply {
+			background = android.graphics.drawable.GradientDrawable(
+				android.graphics.drawable.GradientDrawable.Orientation.BOTTOM_TOP,
+				intArrayOf(0xE6000000.toInt(), 0x66000000, 0x00000000),
+			)
+		}, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(host, 300), Gravity.BOTTOM))
 		val words = LinearLayout(host).apply {
 			orientation = LinearLayout.VERTICAL
 			gravity = Gravity.BOTTOM
-			setPadding(Ui.dp(host, 36), Ui.dp(host, 20), Ui.dp(host, 24), Ui.dp(host, 26))
+			setPadding(Ui.dp(host, 56), 0, Ui.dp(host, 40), Ui.dp(host, 40))
 		}
 		words.addView(panelKind)
-		words.addView(panelTitle, LinearLayout.LayoutParams(Ui.dp(host, 480), ViewGroup.LayoutParams.WRAP_CONTENT))
+		words.addView(panelTitle, LinearLayout.LayoutParams(Ui.dp(host, 680), ViewGroup.LayoutParams.WRAP_CONTENT))
 		words.addView(panelFacts)
-		words.addView(panelOverview, LinearLayout.LayoutParams(Ui.dp(host, 430), ViewGroup.LayoutParams.WRAP_CONTENT))
-		panel.addView(words, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-		root.addView(panel, FrameLayout.LayoutParams(0, 0))
+		words.addView(panelOverview, LinearLayout.LayoutParams(Ui.dp(host, 620), ViewGroup.LayoutParams.WRAP_CONTENT))
+		panel.addView(words, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM))
+		// Under the menu (which turns see-through while a preview plays), over the backdrop.
+		val shell = host.findViewById<View>(R.id.shell)
+		val index = root.indexOfChild(shell).takeIf { it >= 0 } ?: root.childCount
+		root.addView(panel, index, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
 	}
 
 	private fun text(sizeSp: Float, bold: Boolean = false) = TextView(host).apply {
@@ -178,6 +195,10 @@ class PreviewController(private val host: MainActivity, private val root: FrameL
 			panel.animate().cancel()
 			panel.animate().alpha(0f).setDuration(200L).withEndAction { panel.visibility = View.GONE }.start()
 		}
+		if (panelShown) {
+			panelShown = false
+			host.setPreviewing(false)
+		}
 		state = State.IDLE
 		item = null
 		anchor = null
@@ -186,7 +207,7 @@ class PreviewController(private val host: MainActivity, private val root: FrameL
 	private val begin = Runnable {
 		val target = item ?: return@Runnable
 		val box = anchor ?: return@Runnable
-		if (!box.isAttachedToWindow || !box.isShown) {
+		if (!box.isAttachedToWindow || !box.isShown || (!inline && !holdsFocus(box))) {
 			stop()
 			return@Runnable
 		}
@@ -206,11 +227,23 @@ class PreviewController(private val host: MainActivity, private val root: FrameL
 		}
 	}
 
-	/** Movies and episodes play themselves; a show plays its next (or first) episode. */
+	/** Movies and episodes play themselves; a show (or season) plays its next (or first) episode. */
 	private suspend fun resolve(target: JfItem): JfItem? = when (target.type) {
 		"Series" -> host.api.nextUp(host.session, 1, target.id).firstOrNull()
 			?: host.api.episodes(host.session, target.id, null).firstOrNull()
+		"Season" -> target.seriesId?.let { series -> host.api.episodes(host.session, series, target.id).firstOrNull() }
 		else -> target
+	}
+
+	/** The card (or the card the artwork belongs to) still has focus. */
+	private fun holdsFocus(view: View): Boolean {
+		var v: View? = view
+		repeat(3) {
+			val current = v ?: return false
+			if (current.isFocused || current.hasFocus()) return true
+			v = current.parent as? View
+		}
+		return false
 	}
 
 	private fun start(shown: JfItem, playable: JfItem, box: FrameLayout) {
@@ -221,10 +254,10 @@ class PreviewController(private val host: MainActivity, private val root: FrameL
 			box.addView(countdown, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
 				Gravity.TOP or Gravity.END).apply { setMargins(0, Ui.dp(host, 18), Ui.dp(host, 20), 0) })
 		} else {
-			showPanel(shown, box)
+			showPanel(shown)
 			panelVideo.addView(view, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
 			panel.addView(countdown, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
-				Gravity.TOP or Gravity.END).apply { setMargins(0, Ui.dp(host, 18), Ui.dp(host, 20), 0) })
+				Gravity.BOTTOM or Gravity.END).apply { setMargins(0, 0, Ui.dp(host, 44), Ui.dp(host, 44)) })
 		}
 		countdown.visibility = View.GONE
 		surface = view
@@ -270,31 +303,20 @@ class PreviewController(private val host: MainActivity, private val root: FrameL
 		state = State.PLAYING
 	}
 
-	/** Puts the big preview window over the top of the page and the focused card just below it. */
-	private fun showPanel(shown: JfItem, card: FrameLayout) {
-		val content = host.contentArea
-		val area = Rect()
-		val screen = Rect()
-		content.getGlobalVisibleRect(area)
-		root.getGlobalVisibleRect(screen)
-		val side = Ui.dp(host, 28)
-		panel.layoutParams = FrameLayout.LayoutParams(area.width() - side * 2, (area.height() * 0.5f).toInt()).apply {
-			leftMargin = area.left - screen.left + side
-			topMargin = area.top - screen.top + Ui.dp(host, 14)
-		}
+	/** The preview fills the screen; the page fades away and the menu turns see-through over it. */
+	private fun showPanel(shown: JfItem) {
 		panelKind.text = FeatureText.kind(shown)
 		panelTitle.text = FeatureText.title(shown)
-		panelTitle.setTextSize(TypedValue.COMPLEX_UNIT_SP, if (panelTitle.text.length > 22) 28f else 34f)
+		panelTitle.setTextSize(TypedValue.COMPLEX_UNIT_SP, if (panelTitle.text.length > 26) 30f else 38f)
 		panelFacts.text = FeatureText.facts(host, shown)
 		panelOverview.text = shown.overview.orEmpty()
 		panelOverview.visibility = if (shown.overview.isNullOrBlank()) View.GONE else View.VISIBLE
+		panel.animate().cancel()
 		panel.alpha = 0f
 		panel.visibility = View.VISIBLE
-		panel.animate().alpha(1f).setDuration(280L).start()
-		// Keep the focused card visible under the window.
-		var parent = card.parent
-		while (parent != null && parent !is TvScrollView) parent = parent.parent
-		(parent as? TvScrollView)?.revealAt(card, 0.56f)
+		panel.animate().alpha(1f).setDuration(350L).start()
+		panelShown = true
+		host.setPreviewing(true)
 	}
 
 	/** "Playing in 5…" during the last seconds before the real player takes over. */

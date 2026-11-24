@@ -61,6 +61,8 @@ class CardGridAdapter(
 	private val onClick: (JfItem) -> Unit,
 	private val onFocus: (JfItem) -> Unit,
 	private val onNeedMore: () -> Unit,
+	/** Focus gained / lost on a card (previews). */
+	private val onFocusChange: ((JfItem, View, Boolean) -> Unit)? = null,
 ) : RecyclerView.Adapter<CardGridAdapter.Holder>() {
 
 	class Holder(view: View) : RecyclerView.ViewHolder(view)
@@ -89,7 +91,10 @@ class CardGridAdapter(
 		val item = items[position]
 		cards.bind(holder.itemView, item, style)
 		holder.itemView.setOnClickListener { onClick(item) }
-		app.lumen.player.util.Ui.focusScale(holder.itemView, 1.07f) { focused -> if (focused) onFocus(item) }
+		app.lumen.player.util.Ui.focusScale(holder.itemView, 1.07f) { focused ->
+			if (focused) onFocus(item)
+			onFocusChange?.invoke(item, holder.itemView, focused)
+		}
 		if (position >= items.size - 24 && items.size < total) onNeedMore()
 	}
 

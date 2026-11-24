@@ -46,17 +46,20 @@ object Ui {
 
 	/** Poster card width in dp for the chosen size. */
 	fun posterWidthDp(prefs: Prefs): Int = when (prefs.posterSize) {
-		0 -> 112
-		2 -> 176
-		3 -> 214
-		else -> 142
+		0 -> 116
+		2 -> 200
+		3 -> 250
+		4 -> 300
+		else -> 156
 	}
 
 	/** Landscape (16:9) card width in dp. */
 	fun thumbWidthDp(prefs: Prefs): Int = when (prefs.thumbSize) {
-		0 -> 220
-		2 -> 340
-		else -> 272
+		0 -> 210
+		2 -> 360
+		3 -> 440
+		4 -> 540
+		else -> 280
 	}
 
 	/** Sidebar / button icon size in dp. */

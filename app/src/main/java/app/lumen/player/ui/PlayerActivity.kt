@@ -68,6 +68,8 @@ class PlayerActivity : ComponentActivity(), EngineListener, TimelineView.Listene
 		/** VLC: "Track 2 - [Swedish]". */
 		private val VLC_LANGUAGE = Regex("\\[([^\\]]+)]\\s*$")
 		private val SDH = Regex("(?i)\\b(sdh|cc|hi)\\b")
+		/** libVLC's own names: "Track 3", "Track 3 - [und]". */
+		private val GENERIC_VLC = Regex("(?i)(track|spår)\\s*\\d+(\\s*-\\s*\\[(und|unknown|undefined)?])?")
 		private val SUBTITLE_STYLES = listOf("Outline", "Drop shadow", "Background box")
 		private val SUBTITLE_INDEX = Regex("/Subtitles/(\\d+)/", RegexOption.IGNORE_CASE)
 
@@ -1533,24 +1535,33 @@ class PlayerActivity : ComponentActivity(), EngineListener, TimelineView.Listene
 	 * "English", "Swedish (Forced)"… instead of "Track 1", "Track 2": uses the language the player
 	 * found, VLC's "[Swedish]" part, or what Jellyfin knows about the file's subtitles (same order).
 	 */
-	private fun readableNames(tracks: List<app.lumen.player.engine.TrackOption>, server: List<app.lumen.player.jellyfin.ServerSubtitle>): List<app.lumen.player.engine.TrackOption> {
+	private fun readableNames(
+		tracks: List<app.lumen.player.engine.TrackOption>,
+		server: List<app.lumen.player.jellyfin.ServerSubtitle>,
+		externals: List<ExternalSubtitle> = emptyList(),
+	): List<app.lumen.player.engine.TrackOption> {
 		val embedded = server.filter { !it.isExternal }
+		// VLC calls everything "Track 1, 2, 3…": the video's own subtitles come first (same order as on the
+		// server), then the subtitle files it was handed, in the order they were added.
+		val firstFile = if (engineKind == EngineKind.VLC && externals.isNotEmpty() && tracks.size >= externals.size) tracks.size - externals.size else Int.MAX_VALUE
 		var next = 0
 		val seen = mutableMapOf<String, Int>()
-		return tracks.map { track ->
-			val external = track.detail.contains("External")
+		return tracks.mapIndexed { index, track ->
+			val file = if (index >= firstFile) externals.getOrNull(index - firstFile) else null
+			val external = file != null || track.detail.contains("External")
 			val fromServer = if (!external) embedded.getOrNull(next++) else null
 			val bracket = VLC_LANGUAGE.find(track.title)?.groupValues?.get(1)
-			val generic = GENERIC_TRACK.matches(track.title.trim())
+			val generic = GENERIC_TRACK.matches(track.title.trim()) || GENERIC_VLC.matches(track.title.trim())
 			var name = when {
-				bracket != null -> if (bracket.length <= 3) Formatters.language(bracket) ?: bracket else bracket
+				bracket != null && !GENERIC_TRACK.matches(bracket.trim()) -> if (bracket.length <= 3) Formatters.language(bracket) ?: bracket else bracket
 				!generic -> track.title
+				file != null -> fileName(file)
 				fromServer != null -> Formatters.language(fromServer.language) ?: fromServer.title.substringBefore(" - ").ifBlank { fromServer.title }
 				else -> track.title
 			}
 			val extras = listOfNotNull(
-				"Forced".takeIf { fromServer?.isForced == true && !track.detail.contains("Forced") },
-				fromServer?.title?.let { SDH.find(it)?.value?.uppercase(java.util.Locale.US) },
+				"Forced".takeIf { (fromServer?.isForced == true || file?.forced == true) && !track.detail.contains("Forced") },
+				(fromServer?.title ?: file?.name)?.let { SDH.find(it)?.value?.uppercase(java.util.Locale.US) },
 			)
 			if (extras.isNotEmpty()) name += " (" + extras.joinToString(", ") + ")"
 			// Two "English" tracks: number them so they can be told apart.
@@ -1560,6 +1571,15 @@ class PlayerActivity : ComponentActivity(), EngineListener, TimelineView.Listene
 		}
 	}
 
+	/** A subtitle file's name: "Swedish · OpenSubtitles" for downloads, else its language. */
+	private fun fileName(file: ExternalSubtitle): String {
+		val given = file.name?.trim().orEmpty()
+		if (given.contains(" · ")) return given
+		return Formatters.language(file.language)
+			?: given.substringBefore(" - ").takeIf { it.isNotBlank() && !GENERIC_TRACK.matches(it) }
+			?: "Subtitles"
+	}
+
 	private fun buildPanel(type: PanelType) {
 		val current = engine ?: return
 		val b = panelBuilder
@@ -1567,7 +1587,7 @@ class PlayerActivity : ComponentActivity(), EngineListener, TimelineView.Listene
 		when (type) {
 			PanelType.SUBTITLES -> {
 				panelTitle.text = getString(R.string.subtitles)
-				val tracks = readableNames(current.subtitleTracks(), metadata?.subtitles.orEmpty())
+				val tracks = readableNames(current.subtitleTracks(), metadata?.subtitles.orEmpty(), subtitlesForEngine)
 				b.option("Off", selected = tracks.none { it.selected }) {
 					current.selectSubtitleTrack(null)
 					refreshPanel()

@@ -122,12 +122,12 @@ class Prefs(context: Context) {
 
 	// Appearance ------------------------------------------------------------------------------
 
-	/** 0 = small, 1 = medium, 2 = large, 3 = extra large. */
+	/** 0 = small, 1 = medium, 2 = large, 3 = extra large, 4 = huge. */
 	var posterSize: Int
 		get() = int("ui_poster_size", 1)
 		set(value) = putInt("ui_poster_size", value)
 
-	/** Landscape cards (episodes, continue watching): 0 = small, 1 = medium, 2 = large. */
+	/** Landscape cards (Home rows, episodes, continue watching): 0 = small … 4 = huge. */
 	var thumbSize: Int
 		get() = int("ui_thumb_size", 1)
 		set(value) = putInt("ui_thumb_size", value)

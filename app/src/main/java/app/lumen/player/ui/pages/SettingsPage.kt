@@ -175,18 +175,18 @@ class SettingsPage(host: MainActivity, private val scrollToAccount: Boolean = fa
 			target.post { target.requestFocus() }
 		}
 		b.toggle("Clock", "Top right corner of the menus (not while watching)", isOn = { prefs.showClock }) { appearance { prefs.showClock = it } }
-		b.stepper("Previews", "A focused title plays after 3 seconds; \"then play\" carries on in the player after 20", value = { PREVIEWS[prefs.previewMode.coerceIn(0, 2)] }) { d, _ ->
+		b.stepper("Previews", "Any focused movie or show plays full screen after 3 seconds; \"then play\" carries on in the player after 20", value = { PREVIEWS[prefs.previewMode.coerceIn(0, 2)] }) { d, _ ->
 			prefs.previewMode = (prefs.previewMode + d + 3) % 3
 		}
 		b.toggle("Preview sound", isOn = { prefs.previewSound }) { prefs.previewSound = it }
 		b.stepper("Home rows", "Wide cards like the streaming apps, or posters", value = { if (prefs.homeWideCards) "Wide" else "Posters" }) { _, _ ->
 			appearance { prefs.homeWideCards = !prefs.homeWideCards }
 		}
-		b.stepper("Poster size", value = { SIZES4[prefs.posterSize.coerceIn(0, 3)] }) { d, _ ->
-			appearance { prefs.posterSize = (prefs.posterSize + d).coerceIn(0, 3) }
+		b.stepper("Poster size", "Tall cards: libraries, search, Home when Home rows = Posters · shows when you leave Settings", value = { SIZES5[prefs.posterSize.coerceIn(0, 4)] }) { d, _ ->
+			appearance { prefs.posterSize = (prefs.posterSize + d).coerceIn(0, 4) }
 		}
-		b.stepper("Episode / thumbnail size", value = { SIZES3[prefs.thumbSize.coerceIn(0, 2)] }) { d, _ ->
-			appearance { prefs.thumbSize = (prefs.thumbSize + d).coerceIn(0, 2) }
+		b.stepper("Wide tile size", "Wide cards: Home rows, Continue watching, episodes · shows when you leave Settings", value = { SIZES5[prefs.thumbSize.coerceIn(0, 4)] }) { d, _ ->
+			appearance { prefs.thumbSize = (prefs.thumbSize + d).coerceIn(0, 4) }
 		}
 		b.stepper("Icon size", "Menu and player buttons", value = { ICON_SIZES[prefs.iconSize.coerceIn(0, 3)] }) { d, _ ->
 			appearance { prefs.iconSize = (prefs.iconSize + d).coerceIn(0, 3) }
@@ -348,6 +348,7 @@ class SettingsPage(host: MainActivity, private val scrollToAccount: Boolean = fa
 		val SIZES4 = listOf("Small", "Medium", "Large", "Extra large")
 		val SIZES3 = listOf("Small", "Medium", "Large")
 		val ICON_SIZES = listOf("Extra small", "Small", "Medium", "Large")
+		val SIZES5 = listOf("Small", "Medium", "Large", "Extra large", "Huge")
 		val TEXT_SCALES = listOf(85, 90, 100, 110, 120, 130)
 		val SIDEBAR = listOf("Always expanded", "Icons only", "Expand when focused")
 		val STUTTER = listOf("Off", "Normal", "Sensitive")

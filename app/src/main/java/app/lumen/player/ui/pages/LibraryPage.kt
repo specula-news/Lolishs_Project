@@ -130,6 +130,10 @@ open class LibraryPage(
 			onClick = { host.openItem(it) },
 			onFocus = { host.setBackdrop(it) },
 			onNeedMore = { loadMore() },
+			onFocusChange = { item, card, focused ->
+				val frame = card.findViewById<android.widget.FrameLayout>(R.id.card_frame)
+				if (focused) host.preview.focus(item, frame, 2, inline = false) else host.preview.leave(frame)
+			},
 		)
 		grid.adapter = adapter
 		grid.setPadding(0, Ui.dp(host, 6), 0, Ui.dp(host, 60))

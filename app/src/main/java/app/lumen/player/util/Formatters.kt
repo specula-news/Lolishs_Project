@@ -49,9 +49,24 @@ object Formatters {
 		return sign + String.format(Locale.US, "%.3f s", abs(ms) / 1000.0)
 	}
 
+	/** Three-letter codes (Jellyfin, VLC, subtitle sites) → two-letter ones Android knows by name. */
+	private val THREE_LETTER: Map<String, String> by lazy {
+		val map = HashMap<String, String>()
+		Locale.getISOLanguages().forEach { two -> runCatching { map[Locale(two).getISO3Language()] = two } }
+		// Bibliographic codes that differ from the ones above.
+		map += mapOf(
+			"ger" to "de", "fre" to "fr", "dut" to "nl", "scc" to "sr", "scr" to "hr", "chi" to "zh", "cze" to "cs",
+			"gre" to "el", "per" to "fa", "rum" to "ro", "slo" to "sk", "alb" to "sq", "arm" to "hy", "baq" to "eu",
+			"ice" to "is", "mac" to "mk", "may" to "ms", "wel" to "cy", "geo" to "ka", "bur" to "my", "tib" to "bo",
+			"pob" to "pt", "nob" to "nb", "nno" to "nn",
+		)
+		map
+	}
+
 	fun language(code: String?): String? {
 		if (code.isNullOrBlank() || code == "und" || code == "unknown") return null
-		val name = runCatching { Locale.forLanguageTag(code).getDisplayLanguage(Locale.ENGLISH) }.getOrNull()
+		val tag = code.trim().lowercase(Locale.US).let { if (it.length == 3) THREE_LETTER[it] ?: it else it }
+		val name = runCatching { Locale.forLanguageTag(tag).getDisplayLanguage(Locale.ENGLISH) }.getOrNull()
 		return if (name.isNullOrBlank() || name.equals(code, ignoreCase = true)) code.uppercase(Locale.US)
 		else name.replaceFirstChar { it.titlecase(Locale.ENGLISH) }
 	}
