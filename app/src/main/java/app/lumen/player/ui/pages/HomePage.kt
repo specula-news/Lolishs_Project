@@ -354,7 +354,7 @@ class HomePage(host: MainActivity) : Page(host) {
 		val info = Pills.create(actions, "More Info", R.drawable.ic_info)
 		info.setOnClickListener { DetailActivity.start(host, item.id) }
 		listOf(play, info).forEach { pill ->
-			pill.layoutParams = (pill.layoutParams as LinearLayout.LayoutParams).apply { height = Ui.dp(host, 42) }
+			pill.layoutParams = (pill.layoutParams as LinearLayout.LayoutParams).apply { this.height = Ui.dp(host, 42) }
 			pill.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
 			Ui.focusScale(pill, 1.05f) { focused -> if (focused) host.setBackdrop(item) }
 		}
