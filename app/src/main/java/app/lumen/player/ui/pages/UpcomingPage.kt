@@ -20,7 +20,7 @@ import kotlinx.coroutines.launch
 class UpcomingPage(host: MainActivity) : Page(host) {
 	private val root = LinearLayout(host).apply {
 		orientation = LinearLayout.VERTICAL
-		setPadding(Ui.dp(host, 44), Ui.dp(host, 30), Ui.dp(host, 24), 0)
+		setPadding(Ui.dp(host, 26), Ui.dp(host, 24), Ui.dp(host, 24), 0)
 	}
 	override val view: View = root
 	private val grid = TvRecyclerView(host)

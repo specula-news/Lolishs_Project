@@ -32,6 +32,8 @@ class HomePage(host: MainActivity) : Page(host) {
 
 	private companion object {
 		const val TURN_MS = 10_000L
+		/** Library kinds with a "Latest" row on Home. */
+		val HOME_TYPES = setOf("movies", "tvshows", "mixed", "homevideos", null)
 	}
 
 	private data class RowData(val key: String, val title: String, val style: CardStyle, val items: List<JfItem>)
@@ -42,7 +44,7 @@ class HomePage(host: MainActivity) : Page(host) {
 	private val column = LinearLayout(host).apply {
 		orientation = LinearLayout.VERTICAL
 		// Room for the clock in the corner when the menu is on the left.
-		setPadding(Ui.dp(host, 44), Ui.dp(host, if (host.clockOverlay) 50 else 30), 0, Ui.dp(host, 60))
+		setPadding(Ui.dp(host, 26), Ui.dp(host, if (host.clockOverlay) 46 else 22), 0, Ui.dp(host, 60))
 		clipChildren = false
 		clipToPadding = false
 	}
@@ -120,16 +122,46 @@ class HomePage(host: MainActivity) : Page(host) {
 		val api = host.api
 		val session = host.session
 		val prefs = host.prefs
-		val views = async { runCatching { api.views(session) }.getOrDefault(emptyList()) }
-		val resume = async { if (prefs.rowContinue) runCatching { api.resume(session) }.getOrDefault(emptyList()) else emptyList() }
-		val nextUp = async { if (prefs.rowNextUp) runCatching { api.nextUp(session) }.getOrDefault(emptyList()) else emptyList() }
-		val upcoming = async { if (prefs.rowUpcoming) runCatching { api.upcoming(session) }.getOrDefault(emptyList()) else emptyList() }
-		val favorites = async {
-			if (prefs.rowFavorites) runCatching {
-				api.items(session, ItemQuery(includeTypes = listOf("Movie", "Series"), filters = listOf("IsFavorite"), sortBy = "DateCreated", descending = true, limit = 24)).items
-			}.getOrDefault(emptyList()) else emptyList()
+		val hidden = prefs.navHidden
+		val all = runCatching { api.views(session) }.getOrDefault(emptyList())
+		// Home only shows what the menu shows: a library hidden in the menu is left out here too.
+		val libraries = all.filter { it.collectionType in HOME_TYPES && "lib:${it.id}" !in hidden }
+		val scoped = all.any { "lib:${it.id}" in hidden }
+		// Nothing hidden: one request for everything. Something hidden: ask each visible library and merge.
+		val parents: List<String?> = if (scoped) libraries.map { it.id } else listOf(null)
+
+		suspend fun gather(enabled: Boolean, fetch: suspend (String?) -> List<JfItem>): List<JfItem> =
+			if (!enabled || parents.isEmpty()) emptyList() else coroutineScope {
+				parents.map { parent -> async { runCatching { fetch(parent) }.getOrDefault(emptyList()) } }
+					.flatMap { it.await() }
+					.distinctBy { it.id }
+			}
+
+		val resume = async {
+			gather(prefs.rowContinue) { api.resume(session, parentId = it) }
+				.let { items -> if (scoped) items.sortedByDescending { it.userData?.lastPlayed.orEmpty() } else items }
 		}
-		val libraries = views.await().filter { it.collectionType in setOf("movies", "tvshows", "mixed", "homevideos", null) }
+		val nextUp = async { gather(prefs.rowNextUp) { api.nextUp(session, parentId = it) } }
+		// Series you follow: the ones you marked "Track" plus the ones you watch a lot (auto).
+		val played = async {
+			gather(true) { parent ->
+				api.items(session, ItemQuery(parentId = parent, includeTypes = listOf("Episode"), filters = listOf("IsPlayed"), sortBy = "DatePlayed", descending = true, limit = 80)).items
+			}
+		}
+		val fresh = async {
+			gather(true) { parent ->
+				api.items(session, ItemQuery(parentId = parent, includeTypes = listOf("Episode"), filters = listOf("IsUnplayed"), sortBy = "DateCreated", descending = true, limit = 150)).items
+			}
+		}
+		val upcoming = async {
+			gather(prefs.rowUpcoming && "upcoming" !in hidden) { api.upcoming(session, parentId = it) }
+				.let { items -> if (scoped) items.sortedBy { it.premiereDate.orEmpty() } else items }
+		}
+		val favorites = async {
+			gather(prefs.rowFavorites && "favorites" !in hidden) { parent ->
+				api.items(session, ItemQuery(parentId = parent, includeTypes = listOf("Movie", "Series"), filters = listOf("IsFavorite"), sortBy = "DateCreated", descending = true, limit = 24)).items
+			}
+		}
 		val latest = libraries.map { library ->
 			async {
 				val items = if (prefs.rowLatest) runCatching { api.latest(session, library.id) }.getOrDefault(emptyList()) else emptyList()
@@ -138,13 +170,45 @@ class HomePage(host: MainActivity) : Page(host) {
 		}
 		val wide = prefs.homeWideCards
 		fun style(default: CardStyle) = if (wide) CardStyle.THUMB else default
+		val forYou = newEpisodesForYou(played.await(), fresh.await())
 		buildList {
-			add(RowData("resume", "Continue watching", CardStyle.THUMB, resume.await()))
-			add(RowData("nextup", "Next up", CardStyle.THUMB, nextUp.await()))
+			add(RowData("foryou", "New episodes for you", CardStyle.THUMB, forYou))
+			add(RowData("resume", "Continue watching", CardStyle.THUMB, resume.await().take(24)))
+			add(RowData("nextup", "Next up", CardStyle.THUMB, nextUp.await().take(24)))
 			latest.forEach { add(it.await()) }
-			add(RowData("upcoming", "Upcoming", CardStyle.THUMB, upcoming.await()))
-			add(RowData("favorites", "Favorites", style(CardStyle.POSTER), favorites.await()))
+			add(RowData("upcoming", "Upcoming", CardStyle.THUMB, upcoming.await().take(24)))
+			add(RowData("favorites", "Favorites", style(CardStyle.POSTER), favorites.await().take(24)))
 		}.filter { it.items.isNotEmpty() }
+	}
+
+	/**
+	 * The next unwatched episode of every series you follow that got a new episode in the last month.
+	 * Series with two or more of your recently watched episodes are followed automatically.
+	 */
+	private fun newEpisodesForYou(played: List<JfItem>, fresh: List<JfItem>): List<JfItem> {
+		val prefs = host.prefs
+		val often = played.mapNotNull { it.seriesId }.groupingBy { it }.eachCount().filterValues { it >= 2 }.keys
+		if (played.isNotEmpty()) prefs.autoTrackedSeries = often
+		val followed = (prefs.trackedSeries + often) - prefs.untrackedSeries
+		if (followed.isEmpty()) return emptyList()
+		val monthAgo = System.currentTimeMillis() - 30L * 24 * 3600 * 1000
+		val recent = fresh.filter { episode ->
+			episode.seriesId in followed && (Formatters.epochMs(episode.dateCreated) ?: 0L) > monthAgo
+		}
+		// Per series the episode you'd watch next (lowest season / episode that's new and unwatched).
+		val picks = recent.groupBy { it.seriesId }.values.map { episodes ->
+			episodes.minWith(compareBy<JfItem>({ it.parentIndex ?: 0 }, { it.index ?: 0 }))
+		}.sortedByDescending { it.dateCreated.orEmpty() }
+		// Tell about episodes that weren't there last time.
+		val seen = prefs.newEpisodesSeen
+		val news = picks.filter { it.id !in seen }
+		if (news.isNotEmpty()) {
+			val first = news.first()
+			val more = if (news.size > 1) "  (+${news.size - 1} more)" else ""
+			host.toast("New episode: ${first.seriesName ?: first.name} ${first.episodeCode.orEmpty()}$more")
+			prefs.newEpisodesSeen = (seen + news.map { it.id }).toList().takeLast(400).toSet()
+		}
+		return picks.take(24)
 	}
 
 	private fun sameShape(data: List<RowData>): Boolean =
@@ -394,7 +458,7 @@ class HomePage(host: MainActivity) : Page(host) {
 		card.foreground = ContextCompat.getDrawable(host, R.drawable.bg_feature_ring)
 
 		column.addView(card, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, height).apply {
-			marginEnd = Ui.dp(host, 44)
+			marginEnd = Ui.dp(host, 26)
 			bottomMargin = Ui.dp(host, 4)
 		})
 		feature = Feature(card, art, text, kind, logo, title, facts, overview, play, info, note, dots)

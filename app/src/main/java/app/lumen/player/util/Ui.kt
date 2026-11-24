@@ -61,16 +61,18 @@ object Ui {
 
 	/** Sidebar / button icon size in dp. */
 	fun iconDp(prefs: Prefs): Int = when (prefs.iconSize) {
-		0 -> 20
-		2 -> 30
-		else -> 24
+		0 -> 17
+		2 -> 24
+		3 -> 30
+		else -> 20
 	}
 
 	/** Round player control button size in dp. */
 	fun playerButtonDp(prefs: Prefs): Int = when (prefs.iconSize) {
-		0 -> 42
-		2 -> 60
-		else -> 50
+		0 -> 38
+		2 -> 50
+		3 -> 60
+		else -> 44
 	}
 
 	/** Grow a little when focused, like the Li'Server cards. */

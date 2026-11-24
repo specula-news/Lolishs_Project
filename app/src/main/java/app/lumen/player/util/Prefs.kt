@@ -106,6 +106,11 @@ class Prefs(context: Context) {
 		get() = int("sub_mode", 0)
 		set(value) = putInt("sub_mode", value)
 
+	/** Language last used for "Download subtitles…" (English name, see SubtitleFinder). */
+	var subtitleDownloadLanguage: String?
+		get() = str("sub_download_lang")
+		set(value) = putStr("sub_download_lang", value)
+
 	/** ISO 639-1 code or empty for "no preference". */
 	var preferredSubtitleLanguage: String
 		get() = str("sub_lang") ?: ""
@@ -127,10 +132,10 @@ class Prefs(context: Context) {
 		get() = int("ui_thumb_size", 1)
 		set(value) = putInt("ui_thumb_size", value)
 
-	/** 0 = small, 1 = medium, 2 = large. */
+	/** 0 = extra small, 1 = small (default in every theme), 2 = medium, 3 = large. */
 	var iconSize: Int
-		get() = int("ui_icon_size", 1)
-		set(value) = putInt("ui_icon_size", value)
+		get() = int("ui_icon_size_v2", 1)
+		set(value) = putInt("ui_icon_size_v2", value)
 
 	/** Text size in percent (85..130). */
 	var textScale: Int
@@ -184,6 +189,44 @@ class Prefs(context: Context) {
 			o.keys().asSequence().associateWith { o.optString(it) }
 		}.getOrDefault(emptyMap())
 		set(value) = putStr(profileKey("nav_icons"), JSONObject(value as Map<*, *>).toString())
+
+	// Series tracking (per user) ----------------------------------------------------------------
+
+	private fun profileSet(key: String): Set<String> = sp.getStringSet(profileKey(key), emptySet())?.toSet() ?: emptySet()
+	private fun putProfileSet(key: String, value: Set<String>) = sp.edit { putStringSet(profileKey(key), value.toSet()) }
+
+	/** Series you marked "Track" on their page. */
+	var trackedSeries: Set<String>
+		get() = profileSet("tracked_series")
+		set(value) = putProfileSet("tracked_series", value)
+
+	/** Series you watch a lot, picked automatically (refreshed on Home). */
+	var autoTrackedSeries: Set<String>
+		get() = profileSet("auto_tracked_series")
+		set(value) = putProfileSet("auto_tracked_series", value)
+
+	/** Auto-tracked series you turned off. */
+	var untrackedSeries: Set<String>
+		get() = profileSet("untracked_series")
+		set(value) = putProfileSet("untracked_series", value)
+
+	fun isTracked(seriesId: String): Boolean =
+		seriesId !in untrackedSeries && (seriesId in trackedSeries || seriesId in autoTrackedSeries)
+
+	fun setTracked(seriesId: String, tracked: Boolean) {
+		if (tracked) {
+			trackedSeries = trackedSeries + seriesId
+			untrackedSeries = untrackedSeries - seriesId
+		} else {
+			trackedSeries = trackedSeries - seriesId
+			if (seriesId in autoTrackedSeries) untrackedSeries = untrackedSeries + seriesId
+		}
+	}
+
+	/** New episodes Home already told you about. */
+	var newEpisodesSeen: Set<String>
+		get() = profileSet("new_episodes_seen")
+		set(value) = putProfileSet("new_episodes_seen", value)
 
 	/** Sort / filter last used in a library (names of LibraryPage's options). */
 	fun librarySort(libraryId: String): String? = str(profileKey("lib_sort:$libraryId"))
@@ -247,6 +290,23 @@ class Prefs(context: Context) {
 	var serverUrl: String?
 		get() = str("server_url") ?: DEFAULT_SERVER
 		set(value) = putStr("server_url", value)
+
+	/** Servers to choose between (Settings › Server, sign-in screen). The Lolish server is always first. */
+	var servers: List<String>
+		get() {
+			val saved = str("servers")?.split('\n')?.filter { it.isNotBlank() } ?: emptyList()
+			val known = saved + accounts.map { it.serverUrl } + listOfNotNull(serverUrl)
+			return (listOf(DEFAULT_SERVER) + known).map { it.trimEnd('/') }.distinctBy { it.lowercase() }
+		}
+		set(value) = putStr("servers", value.joinToString("\n"))
+
+	fun addServer(url: String) {
+		servers = (servers + url.trimEnd('/')).distinctBy { it.lowercase() }
+	}
+
+	fun removeServer(url: String) {
+		putStr("servers", servers.filter { !it.equals(url.trimEnd('/'), ignoreCase = true) && !it.equals(DEFAULT_SERVER, ignoreCase = true) }.joinToString("\n"))
+	}
 
 	var serverName: String?
 		get() = str("server_name")

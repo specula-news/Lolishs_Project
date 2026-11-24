@@ -20,16 +20,31 @@ object Pills {
 		return pill
 	}
 
+	/** A smaller pill for secondary buttons, so a row of them fits on screen. */
+	fun compact(pill: TextView): TextView {
+		val context = pill.context
+		pill.layoutParams = pill.layoutParams.apply { height = Ui.dp(context, 36) }
+		pill.setPadding(Ui.dp(context, 14), 0, Ui.dp(context, 14), 0)
+		pill.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 13.5f)
+		pill.compoundDrawablesRelative[0]?.let { icon ->
+			val size = Ui.dp(context, 16)
+			icon.setBounds(0, 0, size, size)
+			pill.setCompoundDrawablesRelative(icon, null, null, null)
+			pill.compoundDrawablePadding = Ui.dp(context, 8)
+		}
+		return pill
+	}
+
 	fun setIcon(pill: TextView, icon: Int?) {
 		val context = pill.context
 		if (icon == null) {
 			pill.setCompoundDrawablesRelative(null, null, null, null)
 			return
 		}
-		val size = Ui.dp(context, 20)
+		val size = Ui.dp(context, 18)
 		val drawable = ContextCompat.getDrawable(context, icon)?.mutate()?.apply { setBounds(0, 0, size, size) }
 		pill.setCompoundDrawablesRelative(drawable, null, null, null)
-		pill.compoundDrawablePadding = Ui.dp(context, 10)
+		pill.compoundDrawablePadding = Ui.dp(context, 9)
 		pill.compoundDrawableTintList = ContextCompat.getColorStateList(context, R.color.pill_text)
 	}
 }

@@ -77,7 +77,8 @@ class LiServerPage(host: MainActivity) : Page(host) {
 
 	// State that survives switching tabs (like the website's saved search).
 	private var lastQuery = ""
-	private var privateTrackers = false
+	/** Public and private trackers are always searched. */
+	private val privateTrackers = true
 	private val qualityTags = linkedSetOf<String>()
 	private var resultSort = ResultSort.BEST
 	private var results: List<LiResult> = emptyList()
@@ -116,15 +117,29 @@ class LiServerPage(host: MainActivity) : Page(host) {
 		root.addView(body, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f).apply { topMargin = Ui.dp(host, 10) })
 	}
 
-	override fun onShow() = connect()
+	/** False while another page is open: then a small window elsewhere shows the download speed. */
+	private var visible = false
+
+	override fun onShow() {
+		visible = true
+		host.showDownloadMini(emptyList())
+		connect()
+	}
 
 	override fun onHide() {
-		pollJob?.cancel()
+		visible = false
 		loadJob?.cancel()
+		// Something still downloading: keep an eye on it and show the small speed window.
+		if (signedInAs != null && lastDownloads.any { !it.isSeeding }) {
+			host.showDownloadMini(lastDownloads)
+			startPolling()
+		} else {
+			pollJob?.cancel()
+		}
 	}
 
 	override fun onReturn() {
-		if (signedInAs != null) startPolling()
+		if (signedInAs != null && (visible || lastDownloads.any { !it.isSeeding })) startPolling()
 	}
 
 	override fun focusFirst(): Boolean =
@@ -141,15 +156,21 @@ class LiServerPage(host: MainActivity) : Page(host) {
 
 	// Small building blocks -------------------------------------------------------------------
 
-	/** A compact pill (40 dp) — the website's chips and buttons. */
+	/** A small pill (32 dp) — the website's chips and buttons. */
 	private fun chip(parent: ViewGroup, text: String, icon: Int? = null): TextView {
 		val pill = Pills.create(parent, text, icon)
 		pill.layoutParams = (pill.layoutParams as LinearLayout.LayoutParams).apply {
-			height = Ui.dp(host, 38)
-			marginEnd = Ui.dp(host, 8)
+			height = Ui.dp(host, 32)
+			marginEnd = Ui.dp(host, 6)
 		}
-		pill.setPadding(Ui.dp(host, 16), 0, Ui.dp(host, 16), 0)
-		pill.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+		pill.setPadding(Ui.dp(host, 12), 0, Ui.dp(host, 12), 0)
+		pill.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+		pill.compoundDrawablesRelative[0]?.let { drawable ->
+			val size = Ui.dp(host, 15)
+			drawable.setBounds(0, 0, size, size)
+			pill.setCompoundDrawablesRelative(drawable, null, null, null)
+			pill.compoundDrawablePadding = Ui.dp(host, 6)
+		}
 		return pill
 	}
 
@@ -455,10 +476,8 @@ class LiServerPage(host: MainActivity) : Page(host) {
 		val input = field("Search for a title, then add S01 or a quality tag…", lastQuery, password = false).apply {
 			imeOptions = EditorInfo.IME_ACTION_SEARCH
 		}
-		bar.addView(input, LinearLayout.LayoutParams(0, Ui.dp(host, 46), 1f).apply { marginEnd = Ui.dp(host, 10) })
+		bar.addView(input, LinearLayout.LayoutParams(0, Ui.dp(host, 40), 1f).apply { marginEnd = Ui.dp(host, 8) })
 		val go = chip(bar, "Search", R.drawable.ic_search)
-		val priv = chip(bar, privateLabel())
-		priv.isSelected = privateTrackers
 		val sort = chip(bar, "Sort: ${resultSort.label}", R.drawable.ic_sort)
 		box.addView(bar)
 
@@ -499,7 +518,7 @@ class LiServerPage(host: MainActivity) : Page(host) {
 			hideKeyboard(input)
 			lastQuery = words
 			val query = (listOf(words) + qualityTags.filter { !words.contains(it, ignoreCase = true) }).joinToString(" ")
-			info.text = "Searching ${if (privateTrackers) "public and private" else "public"} trackers for “$query”…"
+			info.text = "Searching public and private trackers for “$query”…"
 			list.removeAllViews()
 			loadJob?.cancel()
 			loadJob = host.lifecycleScope.launch {
@@ -516,11 +535,6 @@ class LiServerPage(host: MainActivity) : Page(host) {
 			}
 		}
 		go.setOnClickListener { doSearch() }
-		priv.setOnClickListener {
-			privateTrackers = !privateTrackers
-			priv.text = privateLabel()
-			priv.isSelected = privateTrackers
-		}
 		sort.setOnClickListener {
 			resultSort = ResultSort.entries[(resultSort.ordinal + 1) % ResultSort.entries.size]
 			sort.text = "Sort: ${resultSort.label}"
@@ -539,8 +553,6 @@ class LiServerPage(host: MainActivity) : Page(host) {
 			doSearch()
 		}
 	}
-
-	private fun privateLabel() = if (privateTrackers) "Private trackers ✓" else "Private trackers"
 
 	private fun resultSummary(): String {
 		val best = results.count { it.isBest }
@@ -626,6 +638,11 @@ class LiServerPage(host: MainActivity) : Page(host) {
 						try {
 							val folder = li.add(name, magnet, isPrivate, plan)
 							host.toast("Added — saving to ${folder.replace('\\', '/').trimEnd('/').substringAfterLast('/')}")
+							// Straight to Downloads, with the new file focused as soon as it shows up.
+							pendingFocus = name
+							pendingSince = System.currentTimeMillis()
+							dlTab = DlTab.DOWNLOADING
+							selectTab(Tab.DOWNLOADS, focus = true)
 							startPolling()
 						} catch (e: CancellationException) {
 							throw e
@@ -694,7 +711,12 @@ class LiServerPage(host: MainActivity) : Page(host) {
 			while (isActive && signedInAs != null) {
 				val items = runCatching { li.downloads() }.getOrNull()
 				if (items != null) onDownloads(items)
-				delay(if (tab == Tab.DOWNLOADS) 2_000L else 5_000L)
+				if (!visible) {
+					// Away from this page: only the small window needs updating, and only while something downloads.
+					host.showDownloadMini(items ?: lastDownloads)
+					if (items != null && items.none { !it.isSeeding }) break
+				}
+				delay(if (tab == Tab.DOWNLOADS && visible) 2_000L else 4_000L)
 			}
 		}
 	}
@@ -727,6 +749,7 @@ class LiServerPage(host: MainActivity) : Page(host) {
 		val signature = "${dlTab.name}|" + items.joinToString("|") { it.hash }
 		if (list.tag == signature) {
 			items.forEach { item -> rows[item.hash]?.let { bindDownload(it, item) } }
+			focusPending()
 			return
 		}
 		val focusedHash = rows.entries.firstOrNull { it.value.view.isFocused }?.key
@@ -748,6 +771,28 @@ class LiServerPage(host: MainActivity) : Page(host) {
 			if (item.hash == focusedHash) r.view.requestFocus()
 			if (animate) stagger(r.view, index)
 		}
+		focusPending()
+	}
+
+	/** The file you just added (its name can differ a little from the search result's). */
+	private var pendingFocus: String? = null
+	private var pendingSince = 0L
+
+	private fun focusPending() {
+		val wanted = pendingFocus ?: return
+		if (System.currentTimeMillis() - pendingSince > 90_000L) {
+			pendingFocus = null
+			return
+		}
+		fun key(text: String) = text.lowercase().replace(Regex("[^a-z0-9]+"), " ").trim()
+		val k = key(wanted)
+		val hit = lastDownloads.firstOrNull { d ->
+			val n = key(d.name)
+			n == k || n.startsWith(k.take(24)) || k.startsWith(n.take(24))
+		} ?: return
+		val r = rows[hit.hash] ?: return
+		pendingFocus = null
+		r.view.requestFocus()
 	}
 
 	private fun bindDownload(r: Row, item: LiDownload) {
@@ -991,6 +1036,6 @@ class LiServerPage(host: MainActivity) : Page(host) {
 
 	private companion object {
 		/** The website's quality chips. */
-		val QUALITY = listOf("1080p", "x265", "HEVC", "ELiTE", "MeGusta", "BONE")
+		val QUALITY = listOf("x265", "HEVC", "ELiTE", "MeGusta", "BONE")
 	}
 }

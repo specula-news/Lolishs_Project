@@ -342,18 +342,22 @@ class MainActivity : BaseActivity() {
 			// The room-tone gradient shows when no artwork is behind the pane.
 			(shell.parent as View).background = ContextCompat.getDrawable(this, R.drawable.bg_glass_window)
 			shell.background = ContextCompat.getDrawable(this, R.drawable.bg_glass_panel)
-			(shell.layoutParams as FrameLayout.LayoutParams).setMargins(Ui.dp(this, 26), Ui.dp(this, 20), Ui.dp(this, 26), Ui.dp(this, 20))
+			(shell.layoutParams as FrameLayout.LayoutParams).setMargins(Ui.dp(this, 10), Ui.dp(this, 8), Ui.dp(this, 10), Ui.dp(this, 8))
 			// No clipToOutline here: clipping the whole UI to a rounded shape costs every frame. The
 			// content just stays clear of the rounded corners.
 			content.setPadding(0, Ui.dp(this, 12), Ui.dp(this, 8), Ui.dp(this, 12))
 			backdrop.scaleType = ImageView.ScaleType.CENTER_CROP
 		}
-		if (!topNav) return
+		if (!topNav) {
+			// Slimmer sidebar: less room around the items and between the menu and the artwork.
+			sidebar.setPadding(Ui.dp(this, 8), sidebar.paddingTop, Ui.dp(this, 8), sidebar.paddingBottom)
+			return
+		}
 		shell.orientation = LinearLayout.VERTICAL
 		sidebar.orientation = LinearLayout.HORIZONTAL
 		sidebar.gravity = Gravity.CENTER_VERTICAL
 		sidebar.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-		sidebar.setPadding(Ui.dp(this, 26), Ui.dp(this, 14), Ui.dp(this, 22), Ui.dp(this, 12))
+		sidebar.setPadding(Ui.dp(this, 20), Ui.dp(this, 8), Ui.dp(this, 18), Ui.dp(this, 6))
 		// See-through bar: the theme's sidebar color, partly transparent over the artwork.
 		if (!glass) sidebar.background = android.graphics.drawable.ColorDrawable(Ui.color(this, R.attr.lumenSidebar)).apply { alpha = 190 }
 		findViewById<View>(R.id.brand).layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
@@ -370,7 +374,7 @@ class MainActivity : BaseActivity() {
 			addView(navList)
 		}
 		sidebar.addView(strip, index, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
-			marginStart = Ui.dp(this@MainActivity, 26)
+			marginStart = Ui.dp(this@MainActivity, 18)
 			marginEnd = Ui.dp(this@MainActivity, 12)
 		})
 		navBottom.orientation = LinearLayout.HORIZONTAL
@@ -400,8 +404,8 @@ class MainActivity : BaseActivity() {
 			background = ContextCompat.getDrawable(this@MainActivity, R.drawable.bg_nav)
 			isFocusable = true
 			isClickable = true
-			val vertical = when (prefs.sidebarSize) { 0 -> 6; 2 -> 13; else -> 10 } + if (topNav) 2 else 0
-			val horizontal = if (topNav) 16 else 12
+			val vertical = when (prefs.sidebarSize) { 0 -> 6; 2 -> 12; else -> 9 }
+			val horizontal = if (topNav) 14 else 10
 			setPadding(Ui.dp(context, horizontal), Ui.dp(context, vertical), Ui.dp(context, horizontal), Ui.dp(context, vertical))
 		}
 		// Glass: Search is a rounded search field at the top of the sidebar, like the reference design.
@@ -409,10 +413,11 @@ class MainActivity : BaseActivity() {
 		if (searchField) row.background = ContextCompat.getDrawable(this, R.drawable.bg_search_pill)
 		// Top bar: Settings, Search and the profile are round icons, everything else is a text link.
 		val iconOnly = topNav && key in TOP_ICON_ONLY
-		val textOnly = topNav && !iconOnly
+		// Top bar links show their icon too (small), so a picked icon ("Change icon") is visible there.
+		val textOnly = false
 		if (topNav) {
 			val vertical = row.paddingTop
-			val horizontal = Ui.dp(this, if (iconOnly) 10 else 14)
+			val horizontal = Ui.dp(this, if (iconOnly) 8 else 12)
 			row.setPadding(horizontal, vertical, horizontal, vertical)
 		}
 		val iconSize = Ui.dp(this, sidebarIconDp())
@@ -456,7 +461,7 @@ class MainActivity : BaseActivity() {
 		val textParams = if (topNav) LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
 		else LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
 		if (iconOnly) row.contentDescription = label
-		if (!iconOnly) row.addView(texts, textParams.apply { marginStart = if (textOnly) 0 else Ui.dp(this@MainActivity, 16) })
+		if (!iconOnly) row.addView(texts, textParams.apply { marginStart = Ui.dp(this@MainActivity, if (topNav) 8 else 12) })
 		val params = if (topNav) {
 			LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
 				marginEnd = Ui.dp(this@MainActivity, 4)
@@ -658,8 +663,8 @@ class MainActivity : BaseActivity() {
 			sidebarExpanded = expanded
 			val iconPx = Ui.dp(this, Ui.iconDp(prefs))
 			sidebar.layoutParams = sidebar.layoutParams.apply {
-				val full = when (prefs.sidebarSize) { 0 -> 214; 2 -> 280; else -> 250 }
-				width = if (expanded) Ui.dp(this@MainActivity, full) else iconPx + Ui.dp(this@MainActivity, 12 * 2 + 14 * 2 + 8)
+				val full = when (prefs.sidebarSize) { 0 -> 188; 2 -> 244; else -> 214 }
+				width = if (expanded) Ui.dp(this@MainActivity, full) else iconPx + Ui.dp(this@MainActivity, 10 * 2 + 8 * 2 + 6)
 			}
 		}
 		brandText.visibility = if (expanded) View.VISIBLE else View.GONE
@@ -805,6 +810,81 @@ class MainActivity : BaseActivity() {
 	}
 
 	private val hideToast = Runnable { toastView.animate().alpha(0f).setDuration(250L).start() }
+
+	// Small download window (Li'Server) ---------------------------------------------------------------
+
+	private class DownloadMini(val view: LinearLayout, val title: TextView, val line: TextView, val bar: android.widget.ProgressBar)
+	private var downloadMini: DownloadMini? = null
+	/** Downloads whose window you hid (OK on it); a new download brings it back. */
+	private var miniHidden: Set<String> = emptySet()
+
+	/** Shows how a Li'Server download is going while you're on another page; empty hides it. */
+	fun showDownloadMini(items: List<app.lumen.player.liserver.LiDownload>) {
+		val active = items.filter { !it.isSeeding }
+		val hashes = active.map { it.hash }.toSet()
+		if (active.isEmpty()) miniHidden = emptySet()
+		if (active.isEmpty() || hashes.all { it in miniHidden }) {
+			downloadMini?.view?.let { v -> if (v.isFocused) content.requestFocus(); v.visibility = View.GONE }
+			return
+		}
+		val mini = downloadMini ?: buildDownloadMini().also { downloadMini = it }
+		val first = active.maxByOrNull { it.speedMb } ?: active.first()
+		mini.title.text = if (active.size == 1) first.name else "${active.size} downloading  ·  ${first.name}"
+		mini.line.text = String.format(java.util.Locale.US, "%.0f%%   ↓ %.2f MB/s   ·   OK to hide", first.progress.coerceIn(0.0, 100.0), active.sumOf { it.speedMb })
+		mini.bar.progress = (first.progress.coerceIn(0.0, 100.0) * 10).toInt()
+		mini.view.visibility = View.VISIBLE
+		miniShown = hashes
+	}
+
+	private fun buildDownloadMini(): DownloadMini {
+		val root = findViewById<LinearLayout>(R.id.shell).parent as FrameLayout
+		val title = TextView(this).apply {
+			maxLines = 1
+			ellipsize = android.text.TextUtils.TruncateAt.END
+			typeface = Ui.bold(context)
+			setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+			setTextColor(ContextCompat.getColorStateList(this@MainActivity, R.color.pill_text))
+			isDuplicateParentStateEnabled = true
+		}
+		val line = TextView(this).apply {
+			maxLines = 1
+			setTextSize(TypedValue.COMPLEX_UNIT_SP, 11.5f)
+			typeface = android.graphics.Typeface.MONOSPACE
+			setTextColor(ContextCompat.getColorStateList(this@MainActivity, R.color.pill_text))
+			isDuplicateParentStateEnabled = true
+		}
+		val bar = android.widget.ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+			max = 1000
+			progressTintList = Ui.colorList(this@MainActivity, R.attr.lumenGreen)
+			progressBackgroundTintList = Ui.colorList(this@MainActivity, R.attr.lumenTrack)
+		}
+		val view = LinearLayout(this).apply {
+			orientation = LinearLayout.VERTICAL
+			background = ContextCompat.getDrawable(this@MainActivity, R.drawable.bg_pill)
+			setPadding(Ui.dp(context, 16), Ui.dp(context, 10), Ui.dp(context, 16), Ui.dp(context, 10))
+			isFocusable = true
+			isClickable = true
+			elevation = Ui.dp(context, 10).toFloat()
+			addView(title)
+			addView(line, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = Ui.dp(context, 3) })
+			addView(bar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(context, 4)).apply { topMargin = Ui.dp(context, 6) })
+		}
+		Ui.focusScale(view, 1.04f)
+		view.setOnClickListener {
+			// Hide it; it comes back with the next download.
+			miniHidden = miniShown
+			if (view.isFocused) content.requestFocus()
+			view.visibility = View.GONE
+			toast("Download window hidden")
+		}
+		root.addView(view, FrameLayout.LayoutParams(Ui.dp(this, 300), ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM or Gravity.END).apply {
+			setMargins(0, 0, Ui.dp(this@MainActivity, 26), Ui.dp(this@MainActivity, 22))
+		})
+		return DownloadMini(view, title, line, bar)
+	}
+
+	/** The downloads the window is showing now. */
+	private var miniShown: Set<String> = emptySet()
 
 	fun drawable(id: Int): Drawable? = ContextCompat.getDrawable(this, id)
 

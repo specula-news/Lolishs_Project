@@ -45,7 +45,7 @@ class DetailActivity : BaseActivity() {
 	private lateinit var genres: TextView
 	private lateinit var overview: TextView
 	private lateinit var mediaInfo: TextView
-	private lateinit var actions: LinearLayout
+	private lateinit var actions: FlowRow
 	private lateinit var sections: LinearLayout
 	private lateinit var loading: View
 	private lateinit var scroll: ScrollView
@@ -214,7 +214,9 @@ class DetailActivity : BaseActivity() {
 			restart.tag = "restart"
 			restart.setOnClickListener { PlayerActivity.play(this, target.id, 0L, chosenMode) }
 		}
-		val playerPill = Pills.create(actions, playerLabel(target), R.drawable.ic_swap)
+		// Second line: smaller buttons for the less used choices.
+		val playerPill = Pills.compact(Pills.create(actions, playerLabel(target), R.drawable.ic_swap))
+		(playerPill.layoutParams as? FlowRow.LayoutParams)?.newLine = true
 		playerPill.tag = "player"
 		playerPill.setOnClickListener {
 			val modes = listOf<PlayerMode?>(null) + PlayerMode.entries
@@ -227,12 +229,15 @@ class DetailActivity : BaseActivity() {
 		chosenMode?.let { return "Player: ${it.label}" }
 		val remembered = PlayerMode.fromName(prefs.rememberedPlayerMode(target.id, target.seriesId))
 		val default = PlayerMode.fromName(prefs.defaultPlayerMode) ?: PlayerMode.EXO_DIRECT
-		return if (remembered != null) "Player: ${remembered.label} (remembered)" else "Player: Auto (${default.label})"
+		return if (remembered != null) "Player: ${remembered.label} ✓" else "Player: Auto (${default.label})"
 	}
 
 	private fun addCommonButtons(item: JfItem) {
 		val played = item.userData?.played == true
-		val watched = Pills.create(actions, if (played) "Watched" else "Mark watched", R.drawable.ic_check_circle)
+		// Without play buttons (e.g. a show still loading) these are the only line, at full size.
+		val small = actions.childCount > 0
+		fun pill(text: String, icon: Int) = Pills.create(actions, text, icon).also { if (small) Pills.compact(it) }
+		val watched = pill(if (played) "Watched" else "Mark watched", R.drawable.ic_check_circle)
 		watched.tag = "watched"
 		watched.isSelected = played
 		watched.setOnClickListener {
@@ -243,7 +248,7 @@ class DetailActivity : BaseActivity() {
 			}
 		}
 		val favorite = item.userData?.favorite == true
-		val heart = Pills.create(actions, if (favorite) "Favorite" else "Add to favorites", if (favorite) R.drawable.ic_favorite else R.drawable.ic_favorite_border)
+		val heart = pill(if (favorite) "Favorite" else "Favorite +", if (favorite) R.drawable.ic_favorite else R.drawable.ic_favorite_border)
 		heart.tag = "favorite"
 		heart.isSelected = favorite
 		heart.setOnClickListener {
@@ -253,8 +258,33 @@ class DetailActivity : BaseActivity() {
 					.onSuccess { load(firstTime = false) }
 			}
 		}
+		// Follow a show: its new episodes come first on Home ("New episodes for you").
+		val followId = if (item.type == "Series") item.id else item.seriesId?.takeIf { item.type == "Season" || item.type == "Episode" }
+		if (followId != null) {
+			fun trackLabel(): String = when {
+				!prefs.isTracked(followId) -> "Track"
+				followId !in prefs.trackedSeries -> "Tracking (auto)"
+				else -> "Tracking"
+			}
+			val track = pill(trackLabel(), if (prefs.isTracked(followId)) R.drawable.ic_check_circle else R.drawable.ic_event)
+			track.tag = "track"
+			track.isSelected = prefs.isTracked(followId)
+			track.setOnClickListener {
+				val now = !prefs.isTracked(followId)
+				prefs.setTracked(followId, now)
+				track.text = trackLabel()
+				track.isSelected = now
+				Pills.setIcon(track, if (now) R.drawable.ic_check_circle else R.drawable.ic_event)
+				if (small) Pills.compact(track)
+				android.widget.Toast.makeText(
+					this,
+					if (now) "New episodes of this show will show up first on Home" else "Not tracking this show any more",
+					android.widget.Toast.LENGTH_SHORT,
+				).show()
+			}
+		}
 		if (item.type == "Episode" && item.seriesId != null) {
-			val series = Pills.create(actions, "Go to series", R.drawable.ic_tv)
+			val series = pill("Series", R.drawable.ic_tv)
 			series.tag = "series"
 			series.setOnClickListener { start(this, item.seriesId) }
 		}

@@ -49,6 +49,7 @@ import app.lumen.player.util.Formatters
 import app.lumen.player.util.Images
 import app.lumen.player.util.Ui
 import app.lumen.player.util.Prefs
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.Date
@@ -106,6 +107,9 @@ class PlayerActivity : ComponentActivity(), EngineListener, TimelineView.Listene
 	private var lastKnownPositionMs = 0L
 	private var lastKnownDurationMs = 0L
 	private var tickCount = 0
+	/** "Last episode – next airs…" is checked once, about a minute before the end. */
+	private var lastEpisodeChecked = false
+	private var airCard: View? = null
 
 	private var controlsVisible = false
 	private var panelType: PanelType? = null
@@ -450,6 +454,9 @@ class PlayerActivity : ComponentActivity(), EngineListener, TimelineView.Listene
 		}
 		internalItemId = itemId
 		metadata = meta
+		lastEpisodeChecked = false
+		airCard?.let { (it.parent as? ViewGroup)?.removeView(it) }
+		airCard = null
 		completed = false
 		finishing = false
 		dismissedSegments.clear()
@@ -593,6 +600,226 @@ class PlayerActivity : ComponentActivity(), EngineListener, TimelineView.Listene
 			val next = runCatching { api.nextEpisode(currentSession, meta.seriesId, meta.itemId) }.getOrNull()
 			if (next == null) finishWithResult(completed = true) else showUpNext(next)
 		}
+	}
+
+	// Download subtitles ---------------------------------------------------------------------------------
+
+	private fun downloadSubtitles() {
+		val last = prefs.subtitleDownloadLanguage ?: "Swedish"
+		val languages = app.lumen.player.util.SubtitleFinder.LANGUAGES.sortedBy { if (it.english == last) 0 else 1 }
+		val wasPlaying = engine?.isPlaying == true
+		engine?.pause()
+		android.app.AlertDialog.Builder(this)
+			.setTitle("Download subtitles in…")
+			.setItems(languages.map { it.english }.toTypedArray()) { _, which ->
+				val language = languages[which]
+				prefs.subtitleDownloadLanguage = language.english
+				searchSubtitles(language, wasPlaying)
+			}
+			.setNegativeButton("Cancel") { _, _ -> if (wasPlaying) engine?.play() }
+			.setOnCancelListener { if (wasPlaying) engine?.play() }
+			.show()
+	}
+
+	private fun searchSubtitles(language: app.lumen.player.util.SubLanguage, wasPlaying: Boolean) {
+		val waiting = android.app.AlertDialog.Builder(this)
+			.setTitle("Searching ${language.english} subtitles…")
+			.setMessage("OpenSubtitles, Addic7ed and your server")
+			.show()
+		val job = lifecycleScope.launch {
+			val meta = metadata
+			val currentSession = session
+			val target = (if (meta != null && currentSession != null) runCatching { api.subtitleTarget(currentSession, meta.itemId) }.getOrNull() else null)
+				?: app.lumen.player.jellyfin.SubtitleTarget(
+					title = meta?.title ?: request.title.orEmpty(), year = null, imdb = null, isEpisode = false,
+					seriesName = null, seriesImdb = null, season = null, episode = null,
+				)
+			val results = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+				kotlinx.coroutines.coroutineScope {
+					val openSubs = async { runCatching { app.lumen.player.util.SubtitleFinder.openSubtitles(target, language) }.getOrDefault(emptyList()) }
+					val addic7ed = async { runCatching { app.lumen.player.util.SubtitleFinder.gestdown(target, language) }.getOrDefault(emptyList()) }
+					val server = async {
+						if (meta == null || currentSession == null) emptyList() else runCatching {
+							api.remoteSubtitles(currentSession, meta.itemId, language.iso3).mapNotNull { o ->
+								val id = o.optString("Id").takeIf { it.isNotBlank() } ?: return@mapNotNull null
+								app.lumen.player.util.OnlineSubtitle(
+									source = o.optString("ProviderName").ifBlank { "Server" } + " (server)",
+									release = o.optString("Name"),
+									language = language.english,
+									format = o.optString("Format").lowercase(),
+									downloads = o.optInt("DownloadCount"),
+									hearingImpaired = o.optBoolean("HearingImpaired"),
+									url = null,
+									serverId = id,
+								)
+							}
+						}.getOrDefault(emptyList())
+					}
+					openSubs.await().take(40) + addic7ed.await().take(20) + server.await().take(20)
+				}
+			}
+			waiting.dismiss()
+			if (results.isEmpty()) {
+				showToast("No ${language.english} subtitles found for this video")
+				if (wasPlaying) engine?.play()
+				return@launch
+			}
+			showSubtitleResults(language, results, wasPlaying)
+		}
+		waiting.setOnCancelListener {
+			job.cancel()
+			if (wasPlaying) engine?.play()
+		}
+	}
+
+	private fun showSubtitleResults(language: app.lumen.player.util.SubLanguage, results: List<app.lumen.player.util.OnlineSubtitle>, wasPlaying: Boolean) {
+		val labels = results.map { r ->
+			val facts = listOfNotNull(
+				r.source,
+				r.format.uppercase().ifBlank { null },
+				if (r.downloads > 0) "${r.downloads} downloads" else null,
+				if (r.hearingImpaired) "hearing impaired" else null,
+			).joinToString("  ·  ")
+			"${r.release.ifBlank { "(no name)" }}\n$facts"
+		}
+		android.app.AlertDialog.Builder(this)
+			.setTitle("${language.english} subtitles (${results.size})")
+			.setItems(labels.toTypedArray()) { _, which -> fetchSubtitle(language, results[which], wasPlaying) }
+			.setNegativeButton("Cancel") { _, _ -> if (wasPlaying) engine?.play() }
+			.setOnCancelListener { if (wasPlaying) engine?.play() }
+			.show()
+	}
+
+	/** Downloads the pick, adds it to the subtitles and turns it on (the player restarts where it was). */
+	private fun fetchSubtitle(language: app.lumen.player.util.SubLanguage, choice: app.lumen.player.util.OnlineSubtitle, wasPlaying: Boolean) {
+		showToast("Downloading subtitles…")
+		lifecycleScope.launch {
+			val position = engine?.positionMs?.takeIf { it > 0 } ?: lastKnownPositionMs
+			try {
+				val sub = if (choice.serverId != null) serverSubtitle(language, choice.serverId) else {
+					val text = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { app.lumen.player.util.SubtitleFinder.download(choice, language) }
+					val dir = java.io.File(cacheDir, "subs").apply { mkdirs() }
+					// Old downloads (over a week) are cleaned up.
+					dir.listFiles()?.filter { System.currentTimeMillis() - it.lastModified() > 7L * 86_400_000L }?.forEach { it.delete() }
+					val name = (metadata?.itemId ?: "video").take(32)
+					val file = java.io.File(dir, "$name-${language.os}-${System.currentTimeMillis()}.${choice.format.ifBlank { "srt" }}")
+					kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { file.writeText(text, Charsets.UTF_8) }
+					ExternalSubtitle(Uri.fromFile(file), "${language.english} · ${choice.source}", language.iso3, enabled = true)
+				}
+				subtitlesForEngine = subtitlesForEngine.map { it.copy(enabled = false) } + sub
+				startEngine(engineKind, position)
+				showToast("${language.english} subtitles on")
+			} catch (e: kotlinx.coroutines.CancellationException) {
+				throw e
+			} catch (e: Exception) {
+				showToast("Couldn’t get the subtitles: ${e.message ?: e.javaClass.simpleName}")
+				if (wasPlaying) engine?.play()
+			}
+		}
+	}
+
+	/** The server's own subtitle plugins: the server saves the file next to the video, then we play it from there. */
+	private suspend fun serverSubtitle(language: app.lumen.player.util.SubLanguage, subtitleId: String): ExternalSubtitle {
+		val meta = metadata ?: throw java.io.IOException("Nothing playing")
+		val currentSession = session ?: throw java.io.IOException("Not signed in")
+		val before = meta.subtitles.map { it.index }.toSet()
+		api.downloadRemoteSubtitle(currentSession, meta.itemId, subtitleId)
+		repeat(8) {
+			kotlinx.coroutines.delay(1_500L)
+			val fresh = runCatching { api.item(currentSession, meta.itemId, meta.mediaSourceId) }.getOrNull() ?: return@repeat
+			val added = fresh.subtitles.firstOrNull { it.isExternal && it.index !in before } ?: return@repeat
+			val sourceId = fresh.mediaSourceId ?: meta.mediaSourceId ?: return@repeat
+			val url = api.subtitleUrl(currentSession.baseUrl, meta.itemId, sourceId, added) ?: return@repeat
+			metadata = fresh
+			return ExternalSubtitle(Uri.parse(url), added.title.ifBlank { "${language.english} · server" }, added.language ?: language.iso3, enabled = true)
+		}
+		throw java.io.IOException("the server saved it, it shows up the next time you play this")
+	}
+
+	// Last episode: when the next one airs ------------------------------------------------------------
+
+	/** About a minute before the end of the newest episode you have: when does the next one air? */
+	private fun checkLastEpisode() {
+		lastEpisodeChecked = true
+		val meta = metadata ?: return
+		val currentSession = session ?: return
+		val seriesId = meta.seriesId ?: return
+		if (!meta.isEpisode) return
+		lifecycleScope.launch {
+			val next = runCatching { api.nextEpisode(currentSession, seriesId, meta.itemId) }.getOrNull()
+			// There's a next episode to watch: "Up next" takes care of it at the end.
+			if (next != null && !next.locationType.equals("Virtual", ignoreCase = true)) return@launch
+			val info = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+				val ids = runCatching { api.seriesIds(currentSession, seriesId) }.getOrNull()
+				val maze = runCatching { app.lumen.player.util.TvMaze.next(ids?.first, ids?.second) }.getOrNull()
+				val virtualAt = next?.let { Formatters.epochMs(it.premiereDate) }?.takeIf { it > System.currentTimeMillis() - 86_400_000L }
+				when {
+					maze?.airsAtMs != null -> maze
+					next != null && virtualAt != null -> app.lumen.player.util.NextAiring(virtualAt, next.parentIndex, next.index, next.name, false)
+					else -> app.lumen.player.util.NextAiring(null, null, null, null, ended = maze?.ended ?: ids?.third.equals("Ended", ignoreCase = true))
+				}
+			}
+			if (!isFinishing && upNext.visibility != View.VISIBLE) showAirCard(info)
+		}
+	}
+
+	private fun showAirCard(info: app.lumen.player.util.NextAiring) {
+		val root = upNext.parent as? FrameLayout ?: return
+		airCard?.let { root.removeView(it) }
+		val headline = when {
+			info.airsAtMs != null -> "Next episode airs ${Formatters.airDate(info.airsAtMs)}"
+			info.ended -> "That was the final episode"
+			else -> "You’re all caught up"
+		}
+		val detail = when {
+			info.airsAtMs != null -> listOfNotNull(
+				if (info.season != null && info.episode != null) "S${info.season} · E${info.episode}" else null,
+				info.name,
+			).joinToString("  ·  ").ifBlank { null }
+			info.ended -> "The series has ended."
+			else -> "No date for the next episode yet."
+		}
+		val card = LinearLayout(this).apply {
+			orientation = LinearLayout.VERTICAL
+			background = ContextCompat.getDrawable(this@PlayerActivity, R.drawable.bg_hud)
+			setPadding(Ui.dp(context, 22), Ui.dp(context, 14), Ui.dp(context, 24), Ui.dp(context, 16))
+			elevation = Ui.dp(context, 12).toFloat()
+			alpha = 0f
+			translationX = Ui.dp(context, 40).toFloat()
+		}
+		card.addView(TextView(this).apply {
+			text = "LAST EPISODE"
+			letterSpacing = 0.16f
+			typeface = Ui.bold(context)
+			setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 11f)
+			setTextColor(Ui.color(this@PlayerActivity, R.attr.lumenAccent))
+		})
+		card.addView(TextView(this).apply {
+			text = headline
+			typeface = Ui.bold(context)
+			setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 18f)
+			setTextColor(Ui.color(this@PlayerActivity, R.attr.lumenText))
+			setPadding(0, Ui.dp(context, 4), 0, 0)
+		})
+		detail?.let { line ->
+			card.addView(TextView(this).apply {
+				text = line
+				setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 13.5f)
+				setTextColor(Ui.color(this@PlayerActivity, R.attr.lumenText2))
+				setPadding(0, Ui.dp(context, 3), 0, 0)
+			})
+		}
+		root.addView(card, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, android.view.Gravity.TOP or android.view.Gravity.END).apply {
+			setMargins(0, Ui.dp(this@PlayerActivity, 36), Ui.dp(this@PlayerActivity, 40), 0)
+		})
+		airCard = card
+		card.animate().alpha(1f).translationX(0f).setDuration(450L).start()
+		card.postDelayed({
+			card.animate().alpha(0f).translationX(Ui.dp(this, 40).toFloat()).setDuration(400L).withEndAction {
+				root.removeView(card)
+				if (airCard === card) airCard = null
+			}.start()
+		}, 20_000L)
 	}
 
 	private fun showUpNext(next: app.lumen.player.jellyfin.JfItem) {
@@ -843,6 +1070,7 @@ class PlayerActivity : ComponentActivity(), EngineListener, TimelineView.Listene
 
 		if (controlsVisible) updateClock(position, duration)
 		checkSegments(position)
+		if (!lastEpisodeChecked && firstFrameShown && duration > 180_000L && position > 0 && duration - position in 1..70_000L) checkLastEpisode()
 		if (tickCount % 2 == 0) sampleStutter(current)
 		if (statsView.visibility == View.VISIBLE && tickCount % 2 == 0) updateStats()
 		if (tickCount % 10 == 0) updateResult()
@@ -1349,6 +1577,10 @@ class PlayerActivity : ComponentActivity(), EngineListener, TimelineView.Listene
 						current.selectSubtitleTrack(track.id)
 						refreshPanel()
 					}
+				}
+				b.action("Download subtitles…", "OpenSubtitles · Addic7ed · your server") {
+					closePanel(showBars = false)
+					downloadSubtitles()
 				}
 				b.header("Timing")
 				subtitleDelayStepper(b)

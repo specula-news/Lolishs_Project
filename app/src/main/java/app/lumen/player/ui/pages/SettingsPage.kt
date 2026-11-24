@@ -20,7 +20,7 @@ class SettingsPage(host: MainActivity, private val scrollToAccount: Boolean = fa
 	private val scroll = app.lumen.player.ui.TvScrollView(host)
 	private val list = LinearLayout(host).apply {
 		orientation = LinearLayout.VERTICAL
-		setPadding(Ui.dp(host, 44), Ui.dp(host, 30), Ui.dp(host, 44), Ui.dp(host, 80))
+		setPadding(Ui.dp(host, 26), Ui.dp(host, 24), Ui.dp(host, 44), Ui.dp(host, 80))
 	}
 	override val view: View = scroll
 	private val rows = LinearLayout(host).apply { orientation = LinearLayout.VERTICAL }
@@ -149,8 +149,10 @@ class SettingsPage(host: MainActivity, private val scrollToAccount: Boolean = fa
 			) { host.signOut() }
 		}
 		b.action("Server", prefs.serverName ?: "Jellyfin", JellyfinApi.normalizeBaseUrl(prefs.serverUrl ?: Prefs.DEFAULT_SERVER)) {
-			Dialogs.input(host, "Jellyfin server address", prefs.serverUrl, Prefs.DEFAULT_SERVER) { value ->
-				if (value.isNotBlank()) host.changeServer(JellyfinApi.normalizeBaseUrl(value))
+			// Switch between saved servers or add one; the address alone is enough (http/https and port are found).
+			val current = JellyfinApi.normalizeBaseUrl(prefs.serverUrl ?: Prefs.DEFAULT_SERVER)
+			app.lumen.player.ui.ServerPicker.show(host, current) { url ->
+				if (!url.equals(current, ignoreCase = true)) host.changeServer(url)
 			}
 		}
 
@@ -186,8 +188,8 @@ class SettingsPage(host: MainActivity, private val scrollToAccount: Boolean = fa
 		b.stepper("Episode / thumbnail size", value = { SIZES3[prefs.thumbSize.coerceIn(0, 2)] }) { d, _ ->
 			appearance { prefs.thumbSize = (prefs.thumbSize + d).coerceIn(0, 2) }
 		}
-		b.stepper("Icon size", "Sidebar and player buttons", value = { SIZES3[prefs.iconSize.coerceIn(0, 2)] }) { d, _ ->
-			appearance { prefs.iconSize = (prefs.iconSize + d).coerceIn(0, 2) }
+		b.stepper("Icon size", "Menu and player buttons", value = { ICON_SIZES[prefs.iconSize.coerceIn(0, 3)] }) { d, _ ->
+			appearance { prefs.iconSize = (prefs.iconSize + d).coerceIn(0, 3) }
 		}
 		b.stepper("Text size", value = { "${prefs.textScale}%" }) { d, _ ->
 			appearance {
@@ -345,6 +347,7 @@ class SettingsPage(host: MainActivity, private val scrollToAccount: Boolean = fa
 		val PREVIEWS = listOf("Off", "Preview only", "Preview, then play")
 		val SIZES4 = listOf("Small", "Medium", "Large", "Extra large")
 		val SIZES3 = listOf("Small", "Medium", "Large")
+		val ICON_SIZES = listOf("Extra small", "Small", "Medium", "Large")
 		val TEXT_SCALES = listOf(85, 90, 100, 110, 120, 130)
 		val SIDEBAR = listOf("Always expanded", "Icons only", "Expand when focused")
 		val STUTTER = listOf("Off", "Normal", "Sensitive")

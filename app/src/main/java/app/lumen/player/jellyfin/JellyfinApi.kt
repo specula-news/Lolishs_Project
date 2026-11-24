@@ -4,6 +4,8 @@ import android.os.Build
 import app.lumen.player.BuildConfig
 import app.lumen.player.util.Prefs
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -67,6 +69,17 @@ data class ItemMetadata(
 	val isEpisode: Boolean get() = type.equals("Episode", ignoreCase = true)
 }
 
+data class SubtitleTarget(
+	val title: String,
+	val year: Int?,
+	val imdb: String?,
+	val isEpisode: Boolean,
+	val seriesName: String?,
+	val seriesImdb: String?,
+	val season: Int?,
+	val episode: Int?,
+)
+
 data class TranscodeInfo(val url: String, val playSessionId: String, val mediaSourceId: String?)
 
 /** Items query for library grids and searches. */
@@ -113,6 +126,38 @@ class JellyfinApi(private val prefs: Prefs) {
 	// Server / auth ------------------------------------------------------------------------------
 
 	/** Returns the server name, or throws if the URL is not a Jellyfin server. */
+	/**
+	 * Finds the Jellyfin server behind an address: tries https / http and the usual ports at the
+	 * same time and returns the first working one (in [serverCandidates] order).
+	 */
+	suspend fun findServer(input: String): String = coroutineScope {
+		val candidates = serverCandidates(input)
+		val probes = candidates.map { url -> async(Dispatchers.IO) { if (isJellyfin(url)) url else null } }
+		var found: String? = null
+		for (probe in probes) {
+			found = probe.await()
+			if (found != null) break
+		}
+		probes.forEach { it.cancel() }
+		found ?: throw java.io.IOException("No Jellyfin server answered at ${input.trim()}.\nTried: ${candidates.joinToString(", ")}")
+	}
+
+	private fun isJellyfin(baseUrl: String): Boolean = runCatching {
+		val connection = (URL("$baseUrl/System/Info/Public").openConnection() as HttpURLConnection).apply {
+			connectTimeout = 3_500
+			readTimeout = 3_500
+			instanceFollowRedirects = true
+			setRequestProperty("Accept", "application/json")
+		}
+		try {
+			if (connection.responseCode != 200) return@runCatching false
+			val json = JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
+			json.optString("Id").isNotBlank() && json.has("Version")
+		} finally {
+			connection.disconnect()
+		}
+	}.getOrDefault(false)
+
 	suspend fun publicServerName(baseUrl: String): String {
 		val json = JSONObject(request("GET", "$baseUrl/System/Info/Public", null))
 		return json.str("ServerName") ?: "Jellyfin"
@@ -181,15 +226,20 @@ class JellyfinApi(private val prefs: Prefs) {
 	suspend fun views(session: Session): List<JfItem> =
 		itemsArray(get(session, "/UserViews", mapOf("userId" to session.userId)))
 
-	suspend fun resume(session: Session, limit: Int = 24): List<JfItem> =
-		itemsArray(get(session, "/UserItems/Resume", mapOf(
-			"userId" to session.userId, "limit" to "$limit", "mediaTypes" to "Video",
-			"fields" to LIST_FIELDS, "enableImageTypes" to "Primary,Backdrop,Thumb,Logo",
-		)))
+	suspend fun resume(session: Session, limit: Int = 24, parentId: String? = null): List<JfItem> =
+		itemsArray(get(session, "/UserItems/Resume", buildMap {
+			put("userId", session.userId)
+			put("limit", "$limit")
+			put("mediaTypes", "Video")
+			put("fields", LIST_FIELDS)
+			put("enableImageTypes", "Primary,Backdrop,Thumb,Logo")
+			parentId?.let { put("parentId", it) }
+		}))
 
-	suspend fun nextUp(session: Session, limit: Int = 24, seriesId: String? = null): List<JfItem> =
+	suspend fun nextUp(session: Session, limit: Int = 24, seriesId: String? = null, parentId: String? = null): List<JfItem> =
 		itemsArray(get(session, "/Shows/NextUp", buildMap {
 			put("userId", session.userId)
+			parentId?.let { put("parentId", it) }
 			put("limit", "$limit")
 			put("fields", LIST_FIELDS)
 			put("enableResumable", "false")
@@ -203,8 +253,13 @@ class JellyfinApi(private val prefs: Prefs) {
 		return JSONArray(text.ifBlank { "[]" }).objects().map(JfItem::parse)
 	}
 
-	suspend fun upcoming(session: Session, limit: Int = 24): List<JfItem> =
-		itemsArray(get(session, "/Shows/Upcoming", mapOf("userId" to session.userId, "limit" to "$limit", "fields" to LIST_FIELDS)))
+	suspend fun upcoming(session: Session, limit: Int = 24, parentId: String? = null): List<JfItem> =
+		itemsArray(get(session, "/Shows/Upcoming", buildMap {
+			put("userId", session.userId)
+			put("limit", "$limit")
+			put("fields", LIST_FIELDS)
+			parentId?.let { put("parentId", it) }
+		}))
 
 	suspend fun items(session: Session, query: ItemQuery): ItemPage {
 		val params = buildMap {
@@ -258,6 +313,44 @@ class JellyfinApi(private val prefs: Prefs) {
 
 	suspend fun setPlayed(session: Session, itemId: String, played: Boolean) {
 		request(if (played) "POST" else "DELETE", url(session, "/UserPlayedItems/$itemId", mapOf("userId" to session.userId)), session.token, if (played) "" else null)
+	}
+
+	/** IMDb / TheTVDB ids and status ("Continuing" / "Ended") of a show, for "next episode airs…". */
+	suspend fun seriesIds(session: Session, seriesId: String): Triple<String?, String?, String?> {
+		val json = JSONObject(get(session, "/Items/$seriesId", mapOf("userId" to session.userId)))
+		val ids = json.optJSONObject("ProviderIds")
+		return Triple(ids?.str("Imdb"), ids?.str("Tvdb"), json.str("Status"))
+	}
+
+	// Online subtitles ----------------------------------------------------------------------------
+
+	/** What subtitle sites need to find the right file: IMDb id, or name + season / episode. */
+	suspend fun subtitleTarget(session: Session, itemId: String): SubtitleTarget {
+		val json = JSONObject(get(session, "/Items/$itemId", mapOf("userId" to session.userId)))
+		val episode = json.str("Type").equals("Episode", ignoreCase = true)
+		val seriesId = json.str("SeriesId")
+		val seriesImdb = if (episode && seriesId != null) {
+			runCatching { JSONObject(get(session, "/Items/$seriesId", mapOf("userId" to session.userId))).optJSONObject("ProviderIds")?.str("Imdb") }.getOrNull()
+		} else null
+		return SubtitleTarget(
+			title = json.str("Name") ?: "",
+			year = json.intOrNull("ProductionYear"),
+			imdb = json.optJSONObject("ProviderIds")?.str("Imdb"),
+			isEpisode = episode,
+			seriesName = json.str("SeriesName"),
+			seriesImdb = seriesImdb,
+			season = json.intOrNull("ParentIndexNumber"),
+			episode = json.intOrNull("IndexNumber"),
+		)
+	}
+
+	/** Subtitles the server's own subtitle plugins (e.g. OpenSubtitles) can find. Empty without plugins. */
+	suspend fun remoteSubtitles(session: Session, itemId: String, language3: String): List<JSONObject> =
+		JSONArray(get(session, "/Items/$itemId/RemoteSearch/Subtitles/$language3", emptyMap()).ifBlank { "[]" }).objects()
+
+	/** The server downloads the subtitle and keeps it next to the video. */
+	suspend fun downloadRemoteSubtitle(session: Session, itemId: String, subtitleId: String) {
+		request("POST", url(session, "/Items/$itemId/RemoteSearch/Subtitles/${enc(subtitleId)}", emptyMap()), session.token, "")
 	}
 
 	// Images ---------------------------------------------------------------------------------------
@@ -555,11 +648,34 @@ class JellyfinApi(private val prefs: Prefs) {
 		}
 
 	companion object {
-		const val LIST_FIELDS = "PrimaryImageAspectRatio,Overview,Genres,ChildCount,MediaSourceCount"
+		const val LIST_FIELDS = "PrimaryImageAspectRatio,Overview,Genres,ChildCount,MediaSourceCount,DateCreated"
 
 		fun normalizeId(id: String?): String? = id?.replace("-", "")?.lowercase(Locale.US)
 
 		/** Normalizes user input like "192.168.1.10:8096/" into "http://192.168.1.10:8096". */
+		/**
+		 * The addresses worth trying for what someone typed ("lolish.no-ip.com", "my.server:8096",
+		 * "https://jf.example.com/web"): https and http, on the given port or Jellyfin's usual ones.
+		 */
+		fun serverCandidates(input: String): List<String> {
+			var text = input.trim().trimEnd('/')
+			text = text.replace(Regex("/web(/.*)?$", RegexOption.IGNORE_CASE), "")
+			val scheme = Regex("^(https?)://", RegexOption.IGNORE_CASE).find(text)?.groupValues?.get(1)?.lowercase(Locale.US)
+			val rest = text.replace(Regex("^[a-z]+://", RegexOption.IGNORE_CASE), "")
+			val hostPort = rest.substringBefore('/')
+			val path = rest.substringAfter('/', "").let { if (it.isEmpty()) "" else "/$it" }
+			val port = Regex(":(\\d+)$").find(hostPort)?.groupValues?.get(1)
+			val host = if (port != null) hostPort.substringBeforeLast(':') else hostPort
+			if (host.isBlank()) return emptyList()
+			fun url(s: String, p: String?) = "$s://$host${p?.let { ":$it" } ?: ""}$path"
+			val list = when {
+				port != null -> if (scheme == "http") listOf(url("http", port), url("https", port)) else listOf(url("https", port), url("http", port))
+				scheme == "http" -> listOf(url("http", "8096"), url("http", null), url("https", "8920"), url("https", null))
+				else -> listOf(url("https", null), url("https", "8920"), url("http", "8096"), url("http", null))
+			}
+			return list.distinct()
+		}
+
 		fun normalizeBaseUrl(input: String): String {
 			var url = input.trim().trimEnd('/')
 			if (!url.startsWith("http://", ignoreCase = true) && !url.startsWith("https://", ignoreCase = true)) {

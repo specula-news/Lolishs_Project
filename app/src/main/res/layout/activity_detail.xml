@@ -108,7 +108,9 @@
 				android:textSize="13sp"
 				android:visibility="gone" />
 
-			<HorizontalScrollView
+			<!-- Buttons wrap onto a second line instead of running off screen. -->
+			<app.lumen.player.ui.FlowRow
+				android:id="@+id/actions"
 				android:layout_width="match_parent"
 				android:layout_height="wrap_content"
 				android:layout_marginStart="-10dp"
@@ -118,16 +120,7 @@
 				android:paddingStart="10dp"
 				android:paddingTop="10dp"
 				android:paddingEnd="10dp"
-				android:paddingBottom="8dp"
-				android:scrollbars="none">
-
-				<LinearLayout
-					android:id="@+id/actions"
-					android:layout_width="wrap_content"
-					android:layout_height="wrap_content"
-					android:clipChildren="false"
-					android:orientation="horizontal" />
-			</HorizontalScrollView>
+				android:paddingBottom="8dp" />
 
 			<LinearLayout
 				android:id="@+id/sections"

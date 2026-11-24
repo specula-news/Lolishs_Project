@@ -4,6 +4,31 @@ import java.util.Locale
 import kotlin.math.abs
 
 object Formatters {
+	/** Jellyfin / ISO date ("2026-11-20T18:04:11.1234567Z" or "2026-11-20") → epoch ms (UTC). */
+	fun epochMs(date: String?): Long? {
+		if (date.isNullOrBlank()) return null
+		val (pattern, text) = if (date.length >= 19) "yyyy-MM-dd'T'HH:mm:ss" to date.substring(0, 19) else "yyyy-MM-dd" to date.take(10)
+		return runCatching {
+			java.text.SimpleDateFormat(pattern, java.util.Locale.US).apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }.parse(text)?.time
+		}.getOrNull()
+	}
+
+	/** "Friday 28 Nov" (+ "today" / "tomorrow" / "in 4 days") for an air date. */
+	fun airDate(epochMs: Long): String {
+		val local = java.util.Calendar.getInstance()
+		val today = java.util.Calendar.getInstance().apply { set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0); set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0) }
+		local.timeInMillis = epochMs
+		val diff = epochMs - today.timeInMillis
+		val days = if (diff >= 0) diff / (24L * 3600 * 1000) else -1L
+		val day = java.text.SimpleDateFormat("EEEE d MMM", java.util.Locale.ENGLISH).format(local.time)
+		val relative = when {
+			days < 0 -> null
+			days == 0L -> "today"
+			days == 1L -> "tomorrow"
+			else -> "in $days days"
+		}
+		return if (relative != null) "$day  ·  $relative" else day
+	}
 	/** 1:02:03 or 4:05 */
 	fun time(ms: Long): String {
 		val totalSec = (ms.coerceAtLeast(0L) + 500L) / 1000L

@@ -10,6 +10,8 @@ data class UserData(
 	val favorite: Boolean,
 	val unplayedCount: Int,
 	val playedPercent: Double,
+	/** ISO date of the last time it was watched (for sorting "Continue watching"). */
+	val lastPlayed: String? = null,
 ) {
 	val positionMs: Long get() = positionTicks / 10_000L
 	val hasResume: Boolean get() = positionTicks > 0 && !played
@@ -58,6 +60,9 @@ data class JfItem(
 	val people: List<Person>,
 	val studios: List<String>,
 	val media: MediaLine?,
+	val dateCreated: String? = null,
+	/** "Virtual" for an episode the server knows about but has no file for (yet). */
+	val locationType: String? = null,
 ) {
 	val runtimeMs: Long get() = runtimeTicks / 10_000L
 	val isFolderLike: Boolean get() = type in setOf("Series", "Season", "BoxSet", "Folder", "CollectionFolder", "UserView", "Playlist")
@@ -112,6 +117,7 @@ data class JfItem(
 						favorite = it.optBoolean("IsFavorite", false),
 						unplayedCount = it.optInt("UnplayedItemCount", 0),
 						playedPercent = it.optDouble("PlayedPercentage", 0.0).let { p -> if (p.isNaN()) 0.0 else p },
+						lastPlayed = it.str("LastPlayedDate"),
 					)
 				},
 				childCount = json.optInt("ChildCount", 0),
@@ -123,6 +129,8 @@ data class JfItem(
 				},
 				studios = json.optJSONArray("Studios").objects().mapNotNull { it.str("Name") },
 				media = parseMedia(json),
+				dateCreated = json.str("DateCreated"),
+				locationType = json.str("LocationType"),
 			)
 		}
 

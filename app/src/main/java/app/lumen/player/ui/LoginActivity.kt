@@ -58,11 +58,9 @@ class LoginActivity : BaseActivity() {
 		findViewById<View>(R.id.btn_manual).setOnClickListener { showPassword(null) }
 		findViewById<View>(R.id.btn_sign_in).setOnClickListener { signIn() }
 		findViewById<View>(R.id.btn_change_server).setOnClickListener {
-			Dialogs.input(this, "Jellyfin server address", base, Prefs.DEFAULT_SERVER) { value ->
-				if (value.isNotBlank()) {
-					prefs.serverUrl = JellyfinApi.normalizeBaseUrl(value)
-					loadServer()
-				}
+			ServerPicker.show(this, base) { url ->
+				prefs.serverUrl = url
+				loadServer()
 			}
 		}
 		password.setOnEditorActionListener { _, actionId, _ ->
@@ -122,6 +120,14 @@ class LoginActivity : BaseActivity() {
 			} catch (e: CancellationException) {
 				throw e
 			} catch (e: Exception) {
+				// Maybe only the address was typed: look for the server on https / http and the usual ports.
+				val found = runCatching { api.findServer(base) }.getOrNull()
+				if (found != null && !found.equals(base, ignoreCase = true)) {
+					prefs.serverUrl = found
+					prefs.addServer(found)
+					loadServer()
+					return@launch
+				}
 				status.text = "Can’t reach $base (${e.message ?: e.javaClass.simpleName}).\nCheck that the server is running, or change the address."
 				if (users.childCount == 0) findViewById<View>(R.id.btn_change_server).requestFocus()
 			}
