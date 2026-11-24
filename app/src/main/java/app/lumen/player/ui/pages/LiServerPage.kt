@@ -84,6 +84,8 @@ class LiServerPage(host: MainActivity) : Page(host) {
 	private var dlTab = DlTab.DOWNLOADING
 	private var dlSort = DlSort.PROGRESS
 	private var lastDownloads: List<LiDownload> = emptyList()
+	private var shotApplied = false
+	private var shotQuery: String? = null
 
 	private fun c(attr: Int) = Ui.color(host, attr)
 
@@ -301,6 +303,18 @@ class LiServerPage(host: MainActivity) : Page(host) {
 
 	private fun onSignedIn(user: String) {
 		signedInAs = user
+		if (app.lumen.player.BuildConfig.DEBUG && !shotApplied) {
+			shotApplied = true
+			when (host.intent.getStringExtra("shot_li_tab")) {
+				"downloads" -> tab = Tab.DOWNLOADS
+				"trending" -> tab = Tab.TRENDING
+			}
+			when (host.intent.getStringExtra("shot_li_dl")) {
+				"seeding" -> dlTab = DlTab.SEEDING
+				"history" -> dlTab = DlTab.HISTORY
+			}
+			shotQuery = host.intent.getStringExtra("shot_li_query")
+		}
 		status.text = "●  $user"
 		buildTabs()
 		selectTab(tab, focus = false)
@@ -519,6 +533,11 @@ class LiServerPage(host: MainActivity) : Page(host) {
 			enter
 		}
 		if (focus) input.requestFocus()
+		shotQuery?.let { q ->
+			shotQuery = null
+			input.setText(q)
+			doSearch()
+		}
 	}
 
 	private fun privateLabel() = if (privateTrackers) "Private trackers ✓" else "Private trackers"

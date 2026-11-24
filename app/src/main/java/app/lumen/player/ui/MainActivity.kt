@@ -119,6 +119,7 @@ class MainActivity : BaseActivity() {
 				item.view.isSelected = true
 				if (hadFocusInSidebar) item.view.requestFocus()
 			}
+			if (app.lumen.player.BuildConfig.DEBUG) applyScreenshotExtras()
 		}
 
 		refreshProfile()
@@ -133,6 +134,18 @@ class MainActivity : BaseActivity() {
 				}
 			}
 		})
+	}
+
+	/** Debug builds only: lets tools/screenshots open a page or a detail screen directly. */
+	private fun applyScreenshotExtras() {
+		intent.getStringExtra("shot_page")?.let { key ->
+			navItems.firstOrNull { it.key == key || it.key == "lib:$key" }?.let { item ->
+				select(item, focusContent = false)
+				item.view.requestFocus()
+				applySidebarMode(focusInSidebar = true)
+			}
+		}
+		intent.getStringExtra("shot_detail")?.let { id -> DetailActivity.start(this, id) }
 	}
 
 	override fun onResume() {

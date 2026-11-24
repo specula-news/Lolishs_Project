@@ -91,6 +91,9 @@ class SettingsPage(host: MainActivity, private val scrollToAccount: Boolean = fa
 			clipToPadding = false
 			addView(tabs)
 		}
+		if (BuildConfig.DEBUG) host.intent.getStringExtra("shot_section")?.let { name ->
+			Section.entries.firstOrNull { it.name.equals(name, ignoreCase = true) }?.let { current = it }
+		}
 		sectionPills.clear()
 		Section.entries.forEach { s ->
 			val pill = app.lumen.player.ui.Pills.create(tabs, s.label)

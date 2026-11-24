@@ -84,7 +84,10 @@ class LaunchActivity : Activity() {
 			accounts.isEmpty() && prefs?.isLinked != true -> LoginActivity::class.java
 			else -> MainActivity::class.java
 		}
-		startActivity(Intent(this, next))
+		startActivity(Intent(this, next).apply {
+			// Debug builds: pass the screenshot script's extras on (see tools/screenshots).
+			if (app.lumen.player.BuildConfig.DEBUG) intent.extras?.let { putExtras(it) }
+		})
 		finish()
 	}
 }

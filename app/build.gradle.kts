@@ -20,6 +20,8 @@ android {
 		// The Shield is arm64; most Fire TV sticks run a 32-bit userland.
 		ndk {
 			abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+			// Screenshot builds run on an x86 Android TV emulator (tools/screenshots).
+			if (project.hasProperty("emulatorAbis")) abiFilters += listOf("x86", "x86_64")
 		}
 	}
 

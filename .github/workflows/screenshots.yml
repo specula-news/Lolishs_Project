@@ -1,0 +1,79 @@
+name: Screenshots
+
+# Runs the real app on an Android TV emulator against made-up sample servers
+# (tools/screenshots/mock_server.py) and saves screenshots of every theme to the
+# "screenshots" branch. Start it from the Actions tab, or it runs when the tools change.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "tools/screenshots/**"
+      - ".github/workflows/screenshots.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  screenshots:
+    name: Take screenshots
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup Java
+        uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+      - name: Build debug APK (with emulator ABIs)
+        run: |
+          chmod +x ./gradlew
+          ./gradlew --no-daemon assembleStandaloneDebug -PemulatorAbis
+      - name: Start sample servers
+        run: |
+          sudo apt-get install -y -qq python3-pil fonts-dejavu-core > /dev/null
+          nohup python3 tools/screenshots/mock_server.py > mock.log 2>&1 &
+          sleep 3
+          curl -sf http://127.0.0.1:8096/Users/Me
+          curl -sf http://127.0.0.1:5000/api/auth/me
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Run app on Android TV emulator
+        uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 30
+          target: android-tv
+          arch: x86
+          profile: tv_1080p
+          ram-size: 3072M
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          script: bash tools/screenshots/shoot.sh
+      - name: Save screenshots to the "screenshots" branch
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p shots
+          cp mock.log shots/ 2>/dev/null || true
+          cd shots
+          git init -q -b screenshots
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Screenshots of ${GITHUB_SHA::7} (run ${GITHUB_RUN_NUMBER})"
+          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" screenshots
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: screenshots
+          path: shots/
+          if-no-files-found: warn
