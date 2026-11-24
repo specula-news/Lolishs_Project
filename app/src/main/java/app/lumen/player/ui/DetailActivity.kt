@@ -71,6 +71,7 @@ class DetailActivity : BaseActivity() {
 		backdrop = findViewById(R.id.backdrop)
 		logo = findViewById(R.id.logo)
 		titleView = findViewById(R.id.title)
+		titleView.typeface = app.lumen.player.util.Ui.display(this) // serif in Lolish amber, bold sans in Glass / purple
 		subtitleView = findViewById(R.id.subtitle)
 		meta = findViewById(R.id.meta)
 		genres = findViewById(R.id.genres)
