@@ -42,7 +42,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           NOTES: ${{ github.event.head_commit.message }}
         run: |
-          TAG="v2.1.${GITHUB_RUN_NUMBER}"
+          TAG="v3.0.${GITHUB_RUN_NUMBER}"
           # Release notes = the commit message, without tool credit lines (shown in the in-app update).
           NOTES=$(printf '%s\n' "$NOTES" | grep -viE '^[[:space:]]*(co-authored-by|claude-session|generated with)|claude\.(ai|com)' || true)
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
@@ -52,7 +52,7 @@ jobs:
             gh release create "$TAG" out/*.apk \
               --repo "$GITHUB_REPOSITORY" \
               --target "$GITHUB_SHA" \
-              --title "Lolish's Project 2.1.${GITHUB_RUN_NUMBER}" \
+              --title "Lolish's Project 3.0.${GITHUB_RUN_NUMBER}" \
               --notes "${NOTES:-Build ${GITHUB_RUN_NUMBER}}"
           fi
           # Keep the 5 newest releases so the repo doesn't fill up with old APKs.

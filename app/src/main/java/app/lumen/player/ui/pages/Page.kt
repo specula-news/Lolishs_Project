@@ -1,5 +1,6 @@
 package app.lumen.player.ui.pages
 
+import android.view.KeyEvent
 import android.view.View
 import app.lumen.player.ui.MainActivity
 
@@ -17,4 +18,7 @@ abstract class Page(protected val host: MainActivity) {
 
 	/** Moves focus into the page; returns false if there's nothing focusable yet. */
 	abstract fun focusFirst(): Boolean
+
+	/** A key press while focus is in the page, before normal navigation. True = handled. */
+	open fun onKey(event: KeyEvent): Boolean = false
 }

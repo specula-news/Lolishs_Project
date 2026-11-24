@@ -2,10 +2,10 @@ plugins {
 	id("com.android.application")
 }
 
-// GitHub Actions numbers every build; that number becomes the app version (2.1.<build>), so the
-// in-app updater can tell which GitHub release is newer. Local builds are 2.1.0.
+// GitHub Actions numbers every build; that number becomes the app version (3.0.<build>), so the
+// in-app updater can tell which GitHub release is newer. Local builds are 3.0.0.
 val buildNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 0
-val appVersionName = "2.1.$buildNumber"
+val appVersionName = "3.0.$buildNumber"
 
 android {
 	namespace = "app.lumen.player"

@@ -107,6 +107,8 @@ class LiServerPage(host: MainActivity) : Page(host) {
 			text = "Connecting…"
 		}
 		header.addView(status)
+		// Keep the corner free for the clock when the menu is on the left.
+		if (host.clockOverlay) header.setPadding(0, 0, Ui.dp(host, 110), 0)
 		root.addView(header)
 		root.addView(tabsRow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
 			topMargin = Ui.dp(host, 12)
@@ -160,9 +162,7 @@ class LiServerPage(host: MainActivity) : Page(host) {
 	private fun hRow() = LinearLayout(host).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
 
 	private fun scrollList(): Pair<ScrollView, LinearLayout> {
-		val scroll = ScrollView(host).apply {
-			isVerticalScrollBarEnabled = false
-			clipToPadding = false
+		val scroll = app.lumen.player.ui.TvScrollView(host).apply {
 			setPadding(0, 0, 0, Ui.dp(host, 50))
 		}
 		val list = LinearLayout(host).apply { orientation = LinearLayout.VERTICAL }

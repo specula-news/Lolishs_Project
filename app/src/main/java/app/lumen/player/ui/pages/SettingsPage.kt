@@ -17,10 +17,7 @@ import kotlin.math.roundToInt
 
 /** All options: account, appearance (sizes), playback, subtitles, audio and Li'Server. */
 class SettingsPage(host: MainActivity, private val scrollToAccount: Boolean = false) : Page(host) {
-	private val scroll = ScrollView(host).apply {
-		isVerticalScrollBarEnabled = false
-		clipToPadding = false
-	}
+	private val scroll = app.lumen.player.ui.TvScrollView(host)
 	private val list = LinearLayout(host).apply {
 		orientation = LinearLayout.VERTICAL
 		setPadding(Ui.dp(host, 44), Ui.dp(host, 30), Ui.dp(host, 44), Ui.dp(host, 80))
@@ -156,12 +153,26 @@ class SettingsPage(host: MainActivity, private val scrollToAccount: Boolean = fa
 	}
 
 	private fun buildAppearance(b: PanelBuilder) {
-		b.stepper("Theme", "Lolish amber · Glass (frosted pane over the artwork) · Li'Server purple", value = { app.lumen.player.util.Themes.NAMES[prefs.theme.coerceIn(0, 2)] }) { d, _ ->
-			appearance { prefs.theme = (prefs.theme + d + 3) % 3 }
+		// Theme and navigation change right away (the screen is rebuilt and you stay here).
+		val themeRow = b.stepper("Theme", "Lolish amber · Glass (frosted pane over the artwork) · Li'Server purple · saved per user", value = { app.lumen.player.util.Themes.NAMES[prefs.theme.coerceIn(0, 2)] }) { d, _ ->
+			prefs.theme = (prefs.theme + d + 3) % 3
+			host.restart(openPage = "settings", focusRow = 0)
 		}
-		b.stepper("Navigation", "Sidebar on the left, or a see-through bar across the top", value = { if (prefs.navPosition == 1) "Top" else "Left" }) { _, _ ->
-			appearance { prefs.navPosition = if (prefs.navPosition == 1) 0 else 1 }
+		val navRow = b.stepper("Navigation", "Buttons on top, or a sidebar on the left · saved per user", value = { if (prefs.navPosition == 1) "Top" else "Left" }) { _, _ ->
+			prefs.navPosition = if (prefs.navPosition == 1) 0 else 1
+			host.restart(openPage = "settings", focusRow = 1)
 		}
+		val pending = host.intent.getIntExtra(app.lumen.player.ui.MainActivity.EXTRA_FOCUS_ROW, -1)
+		if (pending >= 0) {
+			host.intent.removeExtra(app.lumen.player.ui.MainActivity.EXTRA_FOCUS_ROW)
+			val target = if (pending == 1) navRow else themeRow
+			target.post { target.requestFocus() }
+		}
+		b.toggle("Clock", "Top right corner of the menus (not while watching)", isOn = { prefs.showClock }) { appearance { prefs.showClock = it } }
+		b.stepper("Previews", "Focused title plays after a few seconds", value = { PREVIEWS[prefs.previewMode.coerceIn(0, 2)] }) { d, _ ->
+			prefs.previewMode = (prefs.previewMode + d + 3) % 3
+		}
+		b.toggle("Preview sound", isOn = { prefs.previewSound }) { prefs.previewSound = it }
 		b.stepper("Home rows", "Wide cards like the streaming apps, or posters", value = { if (prefs.homeWideCards) "Wide" else "Posters" }) { _, _ ->
 			appearance { prefs.homeWideCards = !prefs.homeWideCards }
 		}
@@ -327,6 +338,7 @@ class SettingsPage(host: MainActivity, private val scrollToAccount: Boolean = fa
 		/** Remembered while the app runs, so Settings reopens where you were (e.g. after "Apply"). */
 		var current = Section.USERS
 		val SIDEBAR_SIZES = listOf("Compact", "Normal", "Large")
+		val PREVIEWS = listOf("Off", "Small window", "Small, then full screen")
 		val SIZES4 = listOf("Small", "Medium", "Large", "Extra large")
 		val SIZES3 = listOf("Small", "Medium", "Large")
 		val TEXT_SCALES = listOf(85, 90, 100, 110, 120, 130)

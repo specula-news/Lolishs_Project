@@ -61,6 +61,17 @@ class MainActivity : BaseActivity() {
 	private val topNav: Boolean get() = prefs.navPosition == 1
 	private val glass: Boolean get() = app.lumen.player.util.Themes.isGlass
 	private lateinit var updates: UpdateFlow
+	/** Streaming-app style previews of the focused title (see PreviewController). */
+	lateinit var preview: PreviewController
+		private set
+	private var clock: TextView? = null
+	/** Last focused view inside the page, to put focus back if a refresh drops it. */
+	private var lastContentFocus: java.lang.ref.WeakReference<View>? = null
+
+	/** True when the buttons are on top (pages use this for LEFT / RIGHT at the edges). */
+	val topNavigation: Boolean get() = topNav
+	/** The clock floats in the top right corner (menu on the left); pages keep that corner free. */
+	val clockOverlay: Boolean get() = prefs.showClock && !topNav
 
 	private class NavItem(val view: View, val label: TextView, val key: String, val factory: (() -> Page)?, val action: (() -> Unit)?)
 
@@ -103,9 +114,17 @@ class MainActivity : BaseActivity() {
 		updates = UpdateFlow(this) { message -> toast(message) }
 		applyShellStyle()
 		window.setBackgroundDrawable(null) // the root view paints the background; skip one full-screen layer
+		val rootFrame = findViewById<View>(R.id.shell).parent as FrameLayout
+		setupClock(rootFrame)
+		preview = PreviewController(this, rootFrame)
+		window.decorView.viewTreeObserver.addOnGlobalFocusChangeListener { _, now ->
+			if (now != null && isInside(now, content)) lastContentFocus = java.lang.ref.WeakReference(now)
+		}
 
 		buildNav(emptyList())
-		val start = startItem()
+		// After a theme / navigation change the app reopens on the page you were on.
+		val reopen = intent.getStringExtra(EXTRA_OPEN_PAGE)?.let { key -> navItems.firstOrNull { it.key == key } }
+		val start = reopen ?: startItem()
 		select(start, focusContent = false)
 		start.view.requestFocus()
 		applySidebarMode(focusInSidebar = true)
@@ -131,7 +150,7 @@ class MainActivity : BaseActivity() {
 				if (sidebar.findFocus() == null) {
 					selectedNav?.view?.requestFocus()
 				} else {
-					finish()
+					Dialogs.confirm(this@MainActivity, "Exit Lolish's Project?", "You can open it again from the home screen.", "Exit") { finish() }
 				}
 			}
 		})
@@ -153,6 +172,53 @@ class MainActivity : BaseActivity() {
 		super.onResume()
 		page?.onReturn()
 		if (::updates.isInitialized) updates.onResume()
+		clock?.let { handler.removeCallbacks(clockTick); clockTick.run() }
+	}
+
+	override fun onPause() {
+		if (::preview.isInitialized) preview.stop()
+		handler.removeCallbacks(clockTick)
+		super.onPause()
+	}
+
+	override fun onWindowFocusChanged(hasFocus: Boolean) {
+		super.onWindowFocusChanged(hasFocus)
+		// A dialog opened: no preview behind it.
+		if (!hasFocus && ::preview.isInitialized) preview.stop()
+	}
+
+	/** Clock in the top right corner of the menus (the player has none). */
+	private fun setupClock(rootFrame: FrameLayout) {
+		if (!prefs.showClock) return
+		val view = TextView(this).apply {
+			typeface = Ui.bold(context)
+			setTextColor(Ui.color(context, R.attr.lumenText))
+			maxLines = 1
+		}
+		if (topNav) {
+			// On the bar, just left of the profile picture.
+			view.setTextSize(TypedValue.COMPLEX_UNIT_SP, 19f)
+			sidebar.addView(view, sidebar.indexOfChild(navBottom), LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+				marginEnd = Ui.dp(this@MainActivity, 16)
+			})
+		} else {
+			view.setTextSize(TypedValue.COMPLEX_UNIT_SP, 17f)
+			view.background = ContextCompat.getDrawable(this, R.drawable.bg_hud)
+			view.setPadding(Ui.dp(this, 14), Ui.dp(this, 5), Ui.dp(this, 14), Ui.dp(this, 5))
+			rootFrame.addView(view, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP or Gravity.END).apply {
+				topMargin = Ui.dp(this@MainActivity, if (glass) 30 else 14)
+				marginEnd = Ui.dp(this@MainActivity, if (glass) 44 else 22)
+			})
+		}
+		clock = view
+		clockTick.run()
+	}
+
+	private val clockTick: Runnable = object : Runnable {
+		override fun run() {
+			clock?.text = android.text.format.DateFormat.getTimeFormat(this@MainActivity).format(java.util.Date())
+			handler.postDelayed(this, 60_000L - System.currentTimeMillis() % 60_000L + 200L)
+		}
 	}
 
 	/**
@@ -227,9 +293,17 @@ class MainActivity : BaseActivity() {
 			NavSpec("liserver", R.drawable.ic_download, "Li'Server", subtitle = "Search & download", factory = { LiServerPage(this) })
 		}
 
+		// Icons: every library gets its own (by name and kind); a picked icon (hold OK) wins.
+		val custom = prefs.navIcons
+		val auto = NavIcons.auto(libraries)
+		val withIcons = specs.map { spec ->
+			val icon = NavIcons.drawable(custom[spec.key]) ?: NavIcons.drawable(auto[spec.key]) ?: spec.icon
+			NavSpec(spec.key, icon, spec.label, spec.subtitle, spec.factory, spec.action)
+		}
+
 		// The user's order (Settings first by default); items it doesn't know yet keep their default place at the end.
 		val order = prefs.navOrder
-		val sorted = specs.withIndex().sortedBy { (index, spec) ->
+		val sorted = withIcons.withIndex().sortedBy { (index, spec) ->
 			val saved = order.indexOf(spec.key)
 			if (saved >= 0) saved else order.size + index
 		}.map { it.value }
@@ -406,16 +480,59 @@ class MainActivity : BaseActivity() {
 		val options = mutableListOf<Pair<String, () -> Unit>>()
 		options += (if (topNav) "Move left / right" else "Move up / down") to { startMove(item) }
 		if (item.key !in UNHIDEABLE) options += "Hide \"$label\"" to { hideNavItem(item) }
+		options += "Change icon" to { pickIcon(item) }
 		if (hiddenSpecs.isNotEmpty()) options += "Show hidden items (${hiddenSpecs.size})" to { showHiddenItems(hiddenSpecs) }
 		options += "Reset sidebar" to {
 			prefs.navOrder = emptyList()
 			prefs.navHidden = emptySet()
+			prefs.navIcons = emptyMap()
 			rebuildNav(focusKey = item.key)
 			toast("Sidebar reset")
 		}
 		android.app.AlertDialog.Builder(this)
 			.setTitle(label)
 			.setItems(options.map { it.first }.toTypedArray()) { _, which -> options[which].second() }
+			.setNegativeButton("Close", null)
+			.show()
+	}
+
+	/** Grid of icons to choose from (saved for this profile). */
+	private fun pickIcon(item: NavItem) {
+		val grid = android.widget.GridLayout(this).apply {
+			columnCount = 6
+			setPadding(Ui.dp(context, 18), Ui.dp(context, 12), Ui.dp(context, 18), Ui.dp(context, 4))
+		}
+		var dialog: android.app.AlertDialog? = null
+		NavIcons.ALL.forEach { (name, res) ->
+			val cell = FrameLayout(this).apply {
+				background = ContextCompat.getDrawable(context, R.drawable.bg_pill)
+				isFocusable = true
+				isClickable = true
+				contentDescription = name
+				setOnClickListener {
+					prefs.navIcons = prefs.navIcons + (item.key to name)
+					dialog?.dismiss()
+					rebuildNav(focusKey = item.key)
+				}
+			}
+			cell.addView(ImageView(this).apply {
+				setImageResource(res)
+				imageTintList = ContextCompat.getColorStateList(context, R.color.pill_text)
+				isDuplicateParentStateEnabled = true
+			}, FrameLayout.LayoutParams(Ui.dp(this, 26), Ui.dp(this, 26), Gravity.CENTER))
+			grid.addView(cell, android.widget.GridLayout.LayoutParams().apply {
+				width = Ui.dp(this@MainActivity, 58)
+				height = Ui.dp(this@MainActivity, 58)
+				setMargins(Ui.dp(this@MainActivity, 6), Ui.dp(this@MainActivity, 6), Ui.dp(this@MainActivity, 6), Ui.dp(this@MainActivity, 6))
+			})
+		}
+		dialog = android.app.AlertDialog.Builder(this)
+			.setTitle("Icon for \"${item.label.text}\"")
+			.setView(ScrollView(this).apply { addView(grid) })
+			.setNeutralButton("Automatic") { _, _ ->
+				prefs.navIcons = prefs.navIcons - item.key
+				rebuildNav(focusKey = item.key)
+			}
 			.setNegativeButton("Close", null)
 			.show()
 	}
@@ -499,6 +616,7 @@ class MainActivity : BaseActivity() {
 		selectedNav?.view?.isSelected = false
 		item.view.isSelected = true
 		selectedNav = item
+		if (::preview.isInitialized) preview.stop()
 		page?.onHide()
 		content.removeAllViews()
 		val newPage = factory()
@@ -542,6 +660,7 @@ class MainActivity : BaseActivity() {
 
 	override fun dispatchKeyEvent(event: KeyEvent): Boolean {
 		val code = event.keyCode
+		if (event.action == KeyEvent.ACTION_DOWN && ::preview.isInitialized && preview.onKey(event)) return true
 		if (movingKey != null) {
 			// Moving a navigation item: UP / DOWN (LEFT / RIGHT on the top bar) move it, OK or BACK finish.
 			if (event.action == KeyEvent.ACTION_DOWN) {
@@ -558,7 +677,15 @@ class MainActivity : BaseActivity() {
 		}
 		if (event.action == KeyEvent.ACTION_DOWN) {
 			val focused = currentFocus
+			if (focused == null && code in DPAD_KEYS && page != null) {
+				// Focus was dropped (a list refreshed under it): put it back instead of letting Android
+				// pick the first thing on screen, which is the menu.
+				val last = lastContentFocus?.get()
+				if (last != null && last.isAttachedToWindow && last.isShown && last.requestFocus()) return true
+				if (page?.focusFirst() == true) return true
+			}
 			val inNav = focused != null && isInside(focused, sidebar)
+			if (focused != null && !inNav && page?.onKey(event) == true) return true
 			// Left sidebar: RIGHT goes into the page, LEFT back to the sidebar, UP / DOWN stay put.
 			// Top bar: DOWN goes into the page, UP back to the bar, LEFT / RIGHT stay put.
 			val toPage = if (topNav) KeyEvent.KEYCODE_DPAD_DOWN else KeyEvent.KEYCODE_DPAD_RIGHT
@@ -702,17 +829,24 @@ class MainActivity : BaseActivity() {
 
 	fun checkForUpdates() = updates.check(manual = true)
 
-	fun restart() {
-		startActivity(Intent(this, MainActivity::class.java))
+	/** Rebuilds the screen (new theme / layout); [openPage] / [focusRow] bring you back where you were. */
+	fun restart(openPage: String? = null, focusRow: Int = -1) {
+		startActivity(Intent(this, MainActivity::class.java).apply {
+			openPage?.let { putExtra(EXTRA_OPEN_PAGE, it) }
+			if (focusRow >= 0) putExtra(EXTRA_FOCUS_ROW, focusRow)
+		})
 		finish()
-		overridePendingTransition(0, 0)
+		overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
 	}
 
-	private companion object {
-		val BROWSABLE = setOf("movies", "tvshows", "boxsets", "homevideos", "mixed", "musicvideos", null)
+	companion object {
+		const val EXTRA_OPEN_PAGE = "open_page"
+		const val EXTRA_FOCUS_ROW = "focus_row"
+		private val DPAD_KEYS = setOf(KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT)
+		private val BROWSABLE = setOf("movies", "tvshows", "boxsets", "homevideos", "mixed", "musicvideos", null)
 		/** Always visible, so the sidebar can't lock you out of Settings or Home. */
-		val UNHIDEABLE = setOf("settings", "home")
+		private val UNHIDEABLE = setOf("settings", "home")
 		/** Shown as round icons on the top bar (the rest are text links). */
-		val TOP_ICON_ONLY = setOf("settings", "search", "user")
+		private val TOP_ICON_ONLY = setOf("settings", "search", "user")
 	}
 }

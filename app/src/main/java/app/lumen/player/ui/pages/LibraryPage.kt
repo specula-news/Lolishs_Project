@@ -31,9 +31,9 @@ open class LibraryPage(
 ) : Page(host) {
 
 	private enum class Sort(val label: String, val field: String, val descending: Boolean) {
+		ADDED("Newest added", "DateCreated,SortName", true),
+		RELEASED("Newest release", "PremiereDate,ProductionYear,SortName", true),
 		NAME("A–Z", "SortName", false),
-		ADDED("Recently added", "DateCreated", true),
-		RELEASED("Release date", "PremiereDate,ProductionYear", true),
 		RATING("Rating", "CommunityRating", true),
 		RUNTIME("Runtime", "Runtime", false),
 		RANDOM("Random", "Random", false),
@@ -61,8 +61,10 @@ open class LibraryPage(
 	private val grid = TvRecyclerView(host)
 	private val emptyView = TextView(host)
 	private val adapter: CardGridAdapter
-	private var sort = Sort.NAME
-	private var filter = Filter.ALL
+	/** Sort and filter are remembered per library (and per user); newest first by default. */
+	private val memoryKey = library?.id ?: titleOverride ?: "all"
+	private var sort = host.prefs.librarySort(memoryKey)?.let { name -> Sort.entries.firstOrNull { it.name == name } } ?: Sort.ADDED
+	private var filter = host.prefs.libraryFilter(memoryKey)?.let { name -> Filter.entries.firstOrNull { it.name == name } } ?: Filter.ALL
 	private var loadJob: Job? = null
 	private var loadingMore = false
 
@@ -99,6 +101,7 @@ open class LibraryPage(
 			val sortPill = Pills.create(toolbar, "Sort: ${sort.label}", R.drawable.ic_sort)
 			sortPill.setOnClickListener {
 				sort = Sort.entries[(sort.ordinal + 1) % Sort.entries.size]
+				host.prefs.setLibrarySort(memoryKey, sort.name)
 				sortPill.text = "Sort: ${sort.label}"
 				reload()
 			}
@@ -106,6 +109,7 @@ open class LibraryPage(
 			(filterPill.layoutParams as ViewGroup.MarginLayoutParams).marginStart = Ui.dp(host, 12)
 			filterPill.setOnClickListener {
 				filter = Filter.entries[(filter.ordinal + 1) % Filter.entries.size]
+				host.prefs.setLibraryFilter(memoryKey, filter.name)
 				filterPill.text = "Show: ${filter.label}"
 				reload()
 			}

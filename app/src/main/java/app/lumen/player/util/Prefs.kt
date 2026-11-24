@@ -133,14 +133,19 @@ class Prefs(context: Context) {
 		set(value) = putInt("ui_text_scale", value)
 
 	/** [Themes.AMBER], [Themes.GLASS] or [Themes.PURPLE]. */
+	// Per profile: every user on the TV keeps their own theme, navigation and sidebar.
+
+	/** Key of the signed-in profile's own copy of a setting. */
+	private fun profileKey(key: String): String = str("user_id")?.let { "$key@$it" } ?: key
+
 	var theme: Int
-		get() = int("ui_theme", Themes.AMBER)
-		set(value) = putInt("ui_theme", value)
+		get() = sp.getInt(profileKey("ui_theme"), sp.getInt("ui_theme", Themes.AMBER))
+		set(value) = putInt(profileKey("ui_theme"), value)
 
 	/** Navigation: 0 = sidebar on the left, 1 = bar on top. */
 	var navPosition: Int
-		get() = int("ui_nav_position", 0)
-		set(value) = putInt("ui_nav_position", value)
+		get() = sp.getInt(profileKey("ui_nav_position_v3"), 1) // 3.0: buttons on top by default
+		set(value) = putInt(profileKey("ui_nav_position_v3"), value)
 
 	/** Page / row / button motion (off = everything appears instantly). */
 	var animations: Boolean
@@ -159,13 +164,41 @@ class Prefs(context: Context) {
 
 	/** Sidebar item keys in the user's order (hold OK on an item → Move). Empty = default order. */
 	var navOrder: List<String>
-		get() = str("nav_order")?.split('\n')?.filter { it.isNotBlank() } ?: emptyList()
-		set(value) = putStr("nav_order", value.joinToString("\n"))
+		get() = (str(profileKey("nav_order")) ?: str("nav_order"))?.split('\n')?.filter { it.isNotBlank() } ?: emptyList()
+		set(value) = putStr(profileKey("nav_order"), value.joinToString("\n"))
 
 	/** Sidebar items the user hid. */
 	var navHidden: Set<String>
-		get() = sp.getStringSet("nav_hidden", emptySet())?.toSet() ?: emptySet()
-		set(value) = sp.edit { putStringSet("nav_hidden", value.toSet()) }
+		get() = (sp.getStringSet(profileKey("nav_hidden"), null) ?: sp.getStringSet("nav_hidden", emptySet()))?.toSet() ?: emptySet()
+		set(value) = sp.edit { putStringSet(profileKey("nav_hidden"), value.toSet()) }
+
+	/** Icons the user picked for navigation items (key → icon name, see NavIcons). */
+	var navIcons: Map<String, String>
+		get() = runCatching {
+			val o = JSONObject(str(profileKey("nav_icons")) ?: "{}")
+			o.keys().asSequence().associateWith { o.optString(it) }
+		}.getOrDefault(emptyMap())
+		set(value) = putStr(profileKey("nav_icons"), JSONObject(value as Map<*, *>).toString())
+
+	/** Sort / filter last used in a library (names of LibraryPage's options). */
+	fun librarySort(libraryId: String): String? = str(profileKey("lib_sort:$libraryId"))
+	fun setLibrarySort(libraryId: String, sort: String) = putStr(profileKey("lib_sort:$libraryId"), sort)
+	fun libraryFilter(libraryId: String): String? = str(profileKey("lib_filter:$libraryId"))
+	fun setLibraryFilter(libraryId: String, filter: String) = putStr(profileKey("lib_filter:$libraryId"), filter)
+
+	/** Banner / card previews: 0 = off, 1 = small only, 2 = small, then full screen. */
+	var previewMode: Int
+		get() = int("ui_preview", 2)
+		set(value) = putInt("ui_preview", value)
+
+	var previewSound: Boolean
+		get() = bool("ui_preview_sound", true)
+		set(value) = putBool("ui_preview_sound", value)
+
+	/** Clock in the top right corner of the menus (never during playback). */
+	var showClock: Boolean
+		get() = bool("ui_clock", true)
+		set(value) = putBool("ui_clock", value)
 
 	var showCardTitles: Boolean
 		get() = bool("ui_card_titles", true)
