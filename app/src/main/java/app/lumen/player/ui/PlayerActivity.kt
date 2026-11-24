@@ -1305,7 +1305,7 @@ class PlayerActivity : ComponentActivity(), EngineListener, TimelineView.Listene
 	 * "English", "Swedish (Forced)"… instead of "Track 1", "Track 2": uses the language the player
 	 * found, VLC's "[Swedish]" part, or what Jellyfin knows about the file's subtitles (same order).
 	 */
-	private fun readableNames(tracks: List<TrackOption>, server: List<app.lumen.player.jellyfin.ServerSubtitle>): List<TrackOption> {
+	private fun readableNames(tracks: List<app.lumen.player.engine.TrackOption>, server: List<app.lumen.player.jellyfin.ServerSubtitle>): List<app.lumen.player.engine.TrackOption> {
 		val embedded = server.filter { !it.isExternal }
 		var next = 0
 		val seen = mutableMapOf<String, Int>()
