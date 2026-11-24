@@ -54,9 +54,12 @@ shot() { # name [wait seconds]
 run_set() { # label theme nav full(1/0)
 	local name=$1
 	write_prefs "$2" "$3"
+	# Into the content: RIGHT from the sidebar, DOWN from the top bar.
+	local enter=KEYCODE_DPAD_RIGHT
+	[ "$3" = 1 ] && enter=KEYCODE_DPAD_DOWN
 	launch ""
 	shot "$name-01-home-menu" 12
-	key KEYCODE_DPAD_RIGHT
+	key $enter
 	shot "$name-02-home" 4
 	if [ "$4" = 1 ]; then
 		key KEYCODE_DPAD_DOWN KEYCODE_DPAD_DOWN
@@ -68,7 +71,13 @@ run_set() { # label theme nav full(1/0)
 		launch "--es shot_page settings --es shot_section APPEARANCE"
 		shot "$name-06-settings" 8
 	fi
-	launch "--es shot_page liserver --es shot_li_query \"'frostline S02'\""
+	if [ "$3" = 1 ]; then
+		launch "--es shot_page lib-movies"
+		sleep 8
+		key $enter
+		shot "$name-04-movies" 4
+	fi
+	launch "--es shot_page liserver --es shot_li_query 'frostline S02'"
 	shot "$name-07-liserver-search" 10
 	if [ "$4" = 1 ]; then
 		launch "--es shot_page liserver --es shot_li_tab downloads"

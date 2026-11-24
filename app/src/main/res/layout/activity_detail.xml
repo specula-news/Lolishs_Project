@@ -108,13 +108,26 @@
 				android:textSize="13sp"
 				android:visibility="gone" />
 
-			<LinearLayout
-				android:id="@+id/actions"
-				android:layout_width="wrap_content"
+			<HorizontalScrollView
+				android:layout_width="match_parent"
 				android:layout_height="wrap_content"
-				android:layout_marginTop="26dp"
+				android:layout_marginStart="-10dp"
+				android:layout_marginTop="16dp"
 				android:clipChildren="false"
-				android:orientation="horizontal" />
+				android:clipToPadding="false"
+				android:paddingStart="10dp"
+				android:paddingTop="10dp"
+				android:paddingEnd="10dp"
+				android:paddingBottom="8dp"
+				android:scrollbars="none">
+
+				<LinearLayout
+					android:id="@+id/actions"
+					android:layout_width="wrap_content"
+					android:layout_height="wrap_content"
+					android:clipChildren="false"
+					android:orientation="horizontal" />
+			</HorizontalScrollView>
 
 			<LinearLayout
 				android:id="@+id/sections"

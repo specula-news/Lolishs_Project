@@ -455,7 +455,7 @@ class LiServerPage(host: MainActivity) : Page(host) {
 		val input = field("Search for a title, then add S01 or a quality tag…", lastQuery, password = false).apply {
 			imeOptions = EditorInfo.IME_ACTION_SEARCH
 		}
-		bar.addView(input, LinearLayout.LayoutParams(Ui.dp(host, 470), Ui.dp(host, 46)).apply { marginEnd = Ui.dp(host, 10) })
+		bar.addView(input, LinearLayout.LayoutParams(0, Ui.dp(host, 46), 1f).apply { marginEnd = Ui.dp(host, 10) })
 		val go = chip(bar, "Search", R.drawable.ic_search)
 		val priv = chip(bar, privateLabel())
 		priv.isSelected = privateTrackers

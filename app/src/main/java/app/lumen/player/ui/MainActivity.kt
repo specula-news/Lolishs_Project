@@ -249,6 +249,8 @@ class MainActivity : BaseActivity() {
 	private fun applyShellStyle() {
 		val shell = findViewById<LinearLayout>(R.id.shell)
 		brandText.typeface = Ui.display(this)
+		brandText.layoutParams = (brandText.layoutParams as LinearLayout.LayoutParams).apply { width = 0; weight = 1f }
+		androidx.core.widget.TextViewCompat.setAutoSizeTextTypeUniformWithConfiguration(brandText, 12, 22, 1, TypedValue.COMPLEX_UNIT_SP)
 		if (glass) {
 			// The room-tone gradient shows when no artwork is behind the pane.
 			(shell.parent as View).background = ContextCompat.getDrawable(this, R.drawable.bg_glass_window)
@@ -285,6 +287,9 @@ class MainActivity : BaseActivity() {
 		navBottom.orientation = LinearLayout.HORIZONTAL
 		navBottom.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
 		findViewById<View>(R.id.nav_divider).layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 1))
+		content.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
+		// Logo only: the bar needs the room for its buttons.
+		brandText.visibility = View.GONE
 	}
 
 	/** Sidebar icons follow "Icon size", a bit smaller in the compact sidebar. */
@@ -313,6 +318,14 @@ class MainActivity : BaseActivity() {
 		// Glass: Search is a rounded search field at the top of the sidebar, like the reference design.
 		val searchField = glass && !topNav && key == "search"
 		if (searchField) row.background = ContextCompat.getDrawable(this, R.drawable.bg_search_pill)
+		// Top bar: Settings, Search and the profile are round icons, everything else is a text link.
+		val iconOnly = topNav && key in TOP_ICON_ONLY
+		val textOnly = topNav && !iconOnly
+		if (topNav) {
+			val vertical = row.paddingTop
+			val horizontal = Ui.dp(this, if (iconOnly) 10 else 14)
+			row.setPadding(horizontal, vertical, horizontal, vertical)
+		}
 		val iconSize = Ui.dp(this, sidebarIconDp())
 		val image = ImageView(this).apply {
 			setImageResource(icon)
@@ -329,7 +342,7 @@ class MainActivity : BaseActivity() {
 			Images.load(image, avatarUrl)
 		}
 		val avatarSize = if (avatarUrl != null) iconSize + Ui.dp(this, 8) else iconSize
-		row.addView(image, LinearLayout.LayoutParams(avatarSize, avatarSize))
+		if (!textOnly) row.addView(image, LinearLayout.LayoutParams(avatarSize, avatarSize))
 		val texts = LinearLayout(this).apply {
 			orientation = LinearLayout.VERTICAL
 			isDuplicateParentStateEnabled = true
@@ -353,10 +366,11 @@ class MainActivity : BaseActivity() {
 		}
 		val textParams = if (topNav) LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
 		else LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-		row.addView(texts, textParams.apply { marginStart = Ui.dp(this@MainActivity, if (topNav) 10 else 16) })
+		if (iconOnly) row.contentDescription = label
+		if (!iconOnly) row.addView(texts, textParams.apply { marginStart = if (textOnly) 0 else Ui.dp(this@MainActivity, 16) })
 		val params = if (topNav) {
 			LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-				marginEnd = Ui.dp(this@MainActivity, 6)
+				marginEnd = Ui.dp(this@MainActivity, 4)
 			}
 		} else {
 			LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
@@ -512,7 +526,7 @@ class MainActivity : BaseActivity() {
 			val iconPx = Ui.dp(this, Ui.iconDp(prefs))
 			sidebar.layoutParams = sidebar.layoutParams.apply {
 				val full = when (prefs.sidebarSize) { 0 -> 214; 2 -> 280; else -> 250 }
-				width = if (expanded) Ui.dp(this@MainActivity, full) else iconPx + Ui.dp(this@MainActivity, 12 * 2 + 14 * 2)
+				width = if (expanded) Ui.dp(this@MainActivity, full) else iconPx + Ui.dp(this@MainActivity, 12 * 2 + 14 * 2 + 8)
 			}
 		}
 		brandText.visibility = if (expanded) View.VISIBLE else View.GONE
@@ -685,5 +699,7 @@ class MainActivity : BaseActivity() {
 		val BROWSABLE = setOf("movies", "tvshows", "boxsets", "homevideos", "mixed", "musicvideos", null)
 		/** Always visible, so the sidebar can't lock you out of Settings or Home. */
 		val UNHIDEABLE = setOf("settings", "home")
+		/** Shown as round icons on the top bar (the rest are text links). */
+		val TOP_ICON_ONLY = setOf("settings", "search", "user")
 	}
 }

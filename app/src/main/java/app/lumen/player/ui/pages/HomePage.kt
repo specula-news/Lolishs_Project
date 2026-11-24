@@ -242,9 +242,13 @@ class HomePage(host: MainActivity) : Page(host) {
 				setPadding(0, Ui.dp(host, 12), 0, 0)
 			}, LinearLayout.LayoutParams(Ui.dp(host, 720), ViewGroup.LayoutParams.WRAP_CONTENT))
 		}
+		box.clipChildren = false
+		box.clipToPadding = false
 		val actions = LinearLayout(host).apply {
 			orientation = LinearLayout.HORIZONTAL
 			setPadding(0, Ui.dp(host, 22), 0, 0)
+			clipChildren = false
+			clipToPadding = false
 		}
 		val play = Pills.create(actions, if (resume) "Resume ${Formatters.time(item.userData?.positionMs ?: 0)}" else "Play", R.drawable.ic_play)
 		play.setOnClickListener { PlayerActivity.play(host, item.id, startMs = -1L) }
