@@ -14,7 +14,9 @@ android {
 	defaultConfig {
 		minSdk = 23
 		targetSdk = 36
-		versionCode = 1000 + buildNumber
+		// (1000 + build) * 10 + offset: +5 normal, +6/+7 older versions rebuilt, +8 "back to the newest"
+		// (see .github/workflows/build.yml). Lets the app go back to an older version and return.
+		versionCode = (1000 + buildNumber) * 10 + (System.getenv("LOLISH_CODE_OFFSET")?.toIntOrNull() ?: 5)
 		versionName = appVersionName
 
 		// The Shield is arm64; most Fire TV sticks run a 32-bit userland.

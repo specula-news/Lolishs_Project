@@ -829,6 +829,8 @@ class MainActivity : BaseActivity() {
 
 	fun checkForUpdates() = updates.check(manual = true)
 
+	fun showOlderVersions() = updates.olderVersions()
+
 	/** Rebuilds the screen (new theme / layout); [openPage] / [focusRow] bring you back where you were. */
 	fun restart(openPage: String? = null, focusRow: Int = -1) {
 		startActivity(Intent(this, MainActivity::class.java).apply {

@@ -19,7 +19,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 /** A build published on GitHub Releases by the "Build APK" workflow. */
-data class Release(val tag: String, val version: String, val notes: String, val apkUrl: String, val apkSize: Long)
+data class Release(val tag: String, val version: String, val notes: String, val apkUrl: String, val apkSize: Long, val versionCode: Int = 0)
 
 /**
  * Self-update from GitHub Releases: every push to main builds the APKs and publishes them as a
@@ -69,6 +69,42 @@ object Updater {
 				}
 			}
 			null
+		} finally {
+			connection.disconnect()
+		}
+	}
+
+	/**
+	 * Older versions you can go back to: the newest release carries the two before it, rebuilt with a
+	 * higher version code so Android installs them over this one. Newest first.
+	 */
+	suspend fun olderVersions(): List<Release> = withContext(Dispatchers.IO) {
+		val connection = (URL("https://api.github.com/repos/$REPO/releases/latest").openConnection() as HttpURLConnection).apply {
+			connectTimeout = 10_000
+			readTimeout = 15_000
+			setRequestProperty("Accept", "application/vnd.github+json")
+			setRequestProperty("User-Agent", USER_AGENT)
+		}
+		try {
+			val code = connection.responseCode
+			if (code == 404) return@withContext emptyList()
+			if (code !in 200..299) throw IOException("GitHub answered HTTP $code")
+			val json = JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
+			val assets = json.optJSONArray("assets") ?: return@withContext emptyList()
+			val pattern = Regex("-v(\\d+(?:\\.\\d+)+)-${BuildConfig.FLAVOR}_rollback-c(\\d+)\\.apk$")
+			(0 until assets.length()).mapNotNull { i ->
+				val asset = assets.optJSONObject(i) ?: return@mapNotNull null
+				val match = pattern.find(asset.optString("name")) ?: return@mapNotNull null
+				val version = match.groupValues[1]
+				Release(
+					tag = "v$version",
+					version = version,
+					notes = "",
+					apkUrl = asset.optString("browser_download_url"),
+					apkSize = asset.optLong("size", -1L),
+					versionCode = match.groupValues[2].toIntOrNull() ?: 0,
+				)
+			}.filter { it.version != currentVersion }.sortedByDescending { it.versionCode }
 		} finally {
 			connection.disconnect()
 		}

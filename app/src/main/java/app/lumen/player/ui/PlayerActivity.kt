@@ -62,6 +62,11 @@ class PlayerActivity : ComponentActivity(), EngineListener, TimelineView.Listene
 		private const val EXTRA_MODE = "lolish.mode"
 		private val SKIPPABLE = setOf("Intro", "Outro", "Recap", "Preview", "Commercial")
 		private val SPEEDS = listOf(0.5f, 0.75f, 0.9f, 1f, 1.1f, 1.25f, 1.5f, 1.75f, 2f)
+		/** "Track 3", "Undefined", "External 1"… names that say nothing about the language. */
+		private val GENERIC_TRACK = Regex("(?i)(track|spår|stream|external|subtitle|audio)?\\s*\\d*|undefined|unknown|und|disable")
+		/** VLC: "Track 2 - [Swedish]". */
+		private val VLC_LANGUAGE = Regex("\\[([^\\]]+)]\\s*$")
+		private val SDH = Regex("(?i)\\b(sdh|cc|hi)\\b")
 		private val SUBTITLE_STYLES = listOf("Outline", "Drop shadow", "Background box")
 		private val SUBTITLE_INDEX = Regex("/Subtitles/(\\d+)/", RegexOption.IGNORE_CASE)
 
@@ -1296,6 +1301,37 @@ class PlayerActivity : ComponentActivity(), EngineListener, TimelineView.Listene
 		}, delayMs)
 	}
 
+	/**
+	 * "English", "Swedish (Forced)"… instead of "Track 1", "Track 2": uses the language the player
+	 * found, VLC's "[Swedish]" part, or what Jellyfin knows about the file's subtitles (same order).
+	 */
+	private fun readableNames(tracks: List<TrackOption>, server: List<app.lumen.player.jellyfin.ServerSubtitle>): List<TrackOption> {
+		val embedded = server.filter { !it.isExternal }
+		var next = 0
+		val seen = mutableMapOf<String, Int>()
+		return tracks.map { track ->
+			val external = track.detail.contains("External")
+			val fromServer = if (!external) embedded.getOrNull(next++) else null
+			val bracket = VLC_LANGUAGE.find(track.title)?.groupValues?.get(1)
+			val generic = GENERIC_TRACK.matches(track.title.trim())
+			var name = when {
+				bracket != null -> if (bracket.length <= 3) Formatters.language(bracket) ?: bracket else bracket
+				!generic -> track.title
+				fromServer != null -> Formatters.language(fromServer.language) ?: fromServer.title.substringBefore(" - ").ifBlank { fromServer.title }
+				else -> track.title
+			}
+			val extras = listOfNotNull(
+				"Forced".takeIf { fromServer?.isForced == true && !track.detail.contains("Forced") },
+				fromServer?.title?.let { SDH.find(it)?.value?.uppercase(java.util.Locale.US) },
+			)
+			if (extras.isNotEmpty()) name += " (" + extras.joinToString(", ") + ")"
+			// Two "English" tracks: number them so they can be told apart.
+			val count = (seen[name] ?: 0) + 1
+			seen[name] = count
+			track.copy(title = if (count > 1) "$name $count" else name)
+		}
+	}
+
 	private fun buildPanel(type: PanelType) {
 		val current = engine ?: return
 		val b = panelBuilder
@@ -1303,7 +1339,7 @@ class PlayerActivity : ComponentActivity(), EngineListener, TimelineView.Listene
 		when (type) {
 			PanelType.SUBTITLES -> {
 				panelTitle.text = getString(R.string.subtitles)
-				val tracks = current.subtitleTracks()
+				val tracks = readableNames(current.subtitleTracks(), metadata?.subtitles.orEmpty())
 				b.option("Off", selected = tracks.none { it.selected }) {
 					current.selectSubtitleTrack(null)
 					refreshPanel()
@@ -1326,7 +1362,7 @@ class PlayerActivity : ComponentActivity(), EngineListener, TimelineView.Listene
 
 			PanelType.AUDIO -> {
 				panelTitle.text = getString(R.string.audio)
-				current.audioTracks().forEach { track ->
+				readableNames(current.audioTracks(), emptyList()).forEach { track ->
 					b.option(track.title, track.detail.ifBlank { null }, track.selected, track.supported) {
 						current.selectAudioTrack(track.id)
 						refreshPanel()

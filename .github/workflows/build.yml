@@ -7,6 +7,13 @@ on:
 permissions:
   contents: write
 
+# Version codes (see app/build.gradle.kts): every release N uses (1000 + N) * 10 + offset.
+#   +5  the normal APK everyone updates to
+#   +6  the previous release, rebuilt   ("_rollback": Settings → Older versions)
+#   +7  the release before that, rebuilt
+#   +8  this release again              ("_back": how a rolled-back app returns to the newest)
+# Android only installs higher version codes, so this is what makes going back (and forth) possible.
+
 jobs:
   build:
     name: Build APKs
@@ -25,10 +32,18 @@ jobs:
         run: |
           chmod +x ./gradlew
           ./gradlew --no-daemon assembleRelease
-      - name: Collect APKs
-        run: |
           mkdir -p out
           find app/build/outputs/apk -name "*.apk" -exec cp {} out/ \;
+      - name: Build "back to the newest" APKs
+        if: github.ref == 'refs/heads/main'
+        env:
+          LOLISH_CODE_OFFSET: "8"
+        run: |
+          ./gradlew --no-daemon assembleRelease
+          for f in $(find app/build/outputs/apk -name "*.apk"); do
+            n=$(basename "$f" .apk); n=${n%-release}
+            cp "$f" "out/${n}_back.apk"
+          done
           ls -la out
       - name: Upload APKs
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -36,12 +51,76 @@ jobs:
           name: lumen-player-apks
           if-no-files-found: error
           path: out/*.apk
-      - name: Publish release (in-app updates download from here)
-        if: github.ref == 'refs/heads/main'
+
+  rollback:
+    name: Older version ${{ matrix.slot }}
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        slot: [1, 2]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup Java
+        uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+      - name: Rebuild an older release with a newer version code
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SLOT: ${{ matrix.slot }}
+        run: |
+          # Releases newest first; this run's own release isn't published yet.
+          TAG=$(gh release list --repo "$GITHUB_REPOSITORY" --limit 10 --json tagName --jq '.[].tagName' | sed -n "${SLOT}p")
+          if [ -z "$TAG" ]; then echo "No older release for slot $SLOT"; exit 0; fi
+          echo "Rebuilding $TAG"
+          git fetch --no-tags --depth=1 origin "refs/tags/$TAG:refs/tags/$TAG"
+          git worktree add /tmp/old "$TAG"
+          cd /tmp/old
+          OLD_RUN=${TAG##*.}
+          CODE=$(( (1000 + GITHUB_RUN_NUMBER) * 10 + 5 + SLOT ))
+          sed -E -i "s/^([[:space:]]*)versionCode = .*/\1versionCode = $CODE/" app/build.gradle.kts
+          grep -q "versionCode = $CODE" app/build.gradle.kts
+          # The rebuilt app updates to this release's "_back" APK, not the normal one (which has a lower code).
+          sed -i 's/val flavorTag = "-${BuildConfig.FLAVOR}-"/val flavorTag = "-${BuildConfig.FLAVOR}_back"/' app/src/main/java/app/lumen/player/util/Updater.kt
+          grep -q '_back"' app/src/main/java/app/lumen/player/util/Updater.kt
+          chmod +x ./gradlew
+          GITHUB_RUN_NUMBER=$OLD_RUN ./gradlew --no-daemon assembleRelease
+          mkdir -p "$GITHUB_WORKSPACE/out"
+          for f in $(find app/build/outputs/apk -name "*.apk"); do
+            n=$(basename "$f" .apk); n=${n%-release}
+            cp "$f" "$GITHUB_WORKSPACE/out/${n}_rollback-c${CODE}.apk"
+          done
+          ls -la "$GITHUB_WORKSPACE/out"
+      - name: Upload APKs
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: rollback-${{ matrix.slot }}
+          if-no-files-found: ignore
+          path: out/*.apk
+
+  publish:
+    name: Publish release (in-app updates download from here)
+    needs: [build, rollback]
+    if: always() && github.ref == 'refs/heads/main' && needs.build.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download APKs
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: out
+          merge-multiple: true
+      - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
           NOTES: ${{ github.event.head_commit.message }}
         run: |
+          ls -la out
           TAG="v3.0.${GITHUB_RUN_NUMBER}"
           # Release notes = the commit message, without tool credit lines (shown in the in-app update).
           NOTES=$(printf '%s\n' "$NOTES" | grep -viE '^[[:space:]]*(co-authored-by|claude-session|generated with)|claude\.(ai|com)' || true)

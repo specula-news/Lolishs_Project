@@ -69,6 +69,10 @@ class SettingsPage(host: MainActivity, private val scrollToAccount: Boolean = fa
 			setPadding(0, 0, Ui.dp(host, 18), 0)
 		})
 		app.lumen.player.ui.Pills.create(updates, "Check for updates", app.lumen.player.R.drawable.ic_refresh).setOnClickListener { host.checkForUpdates() }
+		app.lumen.player.ui.Pills.create(updates, "Older versions", app.lumen.player.R.drawable.ic_replay).apply {
+			(layoutParams as LinearLayout.LayoutParams).marginEnd = Ui.dp(host, 12)
+			setOnClickListener { host.showOlderVersions() }
+		}
 		val auto = app.lumen.player.ui.Pills.create(updates, autoLabel())
 		auto.isSelected = prefs.autoUpdateCheck
 		auto.setOnClickListener {

@@ -54,6 +54,55 @@ class UpdateFlow(private val activity: BaseActivity, private val toast: (String)
 		}
 	}
 
+	/** Settings → Older versions: go back to one of the two releases before the newest. */
+	fun olderVersions() {
+		if (job?.isActive == true) return
+		toast("Looking for older versions…")
+		job = activity.lifecycleScope.launch {
+			val list = try {
+				Updater.olderVersions()
+			} catch (e: CancellationException) {
+				throw e
+			} catch (e: Exception) {
+				toast("Couldn't reach GitHub (${e.message ?: e.javaClass.simpleName})")
+				return@launch
+			}
+			if (activity.isFinishing) return@launch
+			val installable = list.filter { it.versionCode > app.lumen.player.BuildConfig.VERSION_CODE }
+			if (installable.isEmpty()) {
+				AlertDialog.Builder(activity)
+					.setTitle("Older versions")
+					.setMessage(
+						if (list.isEmpty()) "There are no older versions to go back to yet. They come with the next update."
+						else "You're already on an older version. \"Check for updates\" takes you back to the newest one."
+					)
+					.setPositiveButton("OK", null)
+					.show()
+				return@launch
+			}
+			AlertDialog.Builder(activity)
+				.setTitle("Go back to an older version")
+				.setItems(installable.map { "Version ${it.version}" + if (it.apkSize > 0) "   ·   ${it.apkSize / (1024 * 1024)} MB" else "" }.toTypedArray()) { _, which ->
+					confirmOlder(installable[which])
+				}
+				.setNegativeButton("Cancel", null)
+				.show()
+		}
+	}
+
+	private fun confirmOlder(release: Release) {
+		AlertDialog.Builder(activity)
+			.setTitle("Install version ${release.version}?")
+			.setMessage(
+				"You're on ${Updater.currentVersion}. Users, sign-ins and settings stay.\n\n" +
+					"To come back to the newest version later, use \"Check for updates\"."
+			)
+			.setPositiveButton("Install") { _, _ -> start(release) }
+			.setNegativeButton("Cancel", null)
+			.show()
+			.getButton(AlertDialog.BUTTON_POSITIVE)?.requestFocus()
+	}
+
 	/** Call from onResume: continues after the user allowed "Install unknown apps". */
 	fun onResume() {
 		val release = waitingForPermission ?: return
