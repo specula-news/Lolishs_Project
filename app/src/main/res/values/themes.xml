@@ -12,15 +12,267 @@
 		<item name="android:fontFamily">@font/dmsans_regular</item>
 		<item name="android:windowAnimationStyle">@android:style/Animation.Activity</item>
 		<item name="android:alertDialogTheme">@style/Theme.Lumen.Dialog</item>
+		<item name="lumenScrimHero">@drawable/scrim_hero</item>
+		<item name="lumenBg">@color/lumen_bg</item>
+		<item name="lumenSidebar">@color/lumen_sidebar</item>
+		<item name="lumenSurface">@color/lumen_surface</item>
+		<item name="lumenSurface2">@color/lumen_surface_2</item>
+		<item name="lumenBorder">@color/lumen_border</item>
+		<item name="lumenPanel">@color/lumen_panel</item>
+		<item name="lumenAccent">@color/lumen_accent</item>
+		<item name="lumenAccent2">@color/lumen_accent_2</item>
+		<item name="lumenAccentDim">@color/lumen_accent_dim</item>
+		<item name="lumenText">@color/lumen_text</item>
+		<item name="lumenText2">@color/lumen_text_2</item>
+		<item name="lumenText3">@color/lumen_text_3</item>
+		<item name="lumenTrack">@color/lumen_track</item>
+		<item name="lumenBuffer">@color/lumen_buffer</item>
+		<item name="lumenFocus">@color/lumen_focus</item>
+		<item name="lumenOnFocus">@color/lumen_on_focus</item>
+		<item name="lumenScrim">@color/lumen_scrim</item>
+		<item name="lumenDivider">@color/lumen_divider</item>
+		<item name="lumenSegment">@color/lumen_segment</item>
+		<item name="lumenGreen">@color/lumen_green</item>
+		<item name="lumenGreenBg">@color/lumen_green_bg</item>
+		<item name="lumenRed">@color/lumen_red</item>
+		<item name="lumenPillIdle">@color/lumen_pill_idle</item>
+		<item name="lumenHud">@color/lumen_hud</item>
+		<item name="lumenHairline">@color/lumen_hairline</item>
+		<item name="lumenAccentGlow">@color/lumen_accent_glow</item>
+		<item name="lumenAccentFaint">@color/lumen_accent_faint</item>
+		<item name="lumenTag">@color/lumen_tag</item>
+		<item name="lumenTrackBg">@color/lumen_track_bg</item>
+		<item name="lumenFocusText2">@color/lumen_focus_text_2</item>
+		<item name="lumenTextDisabled">@color/lumen_text_disabled</item>
+		<item name="lumenAmber">@color/lumen_amber</item>
 	</style>
 
 	<style name="Theme.Lumen.Dialog" parent="@android:style/Theme.DeviceDefault.Dialog.Alert">
 		<item name="android:colorAccent">@color/lumen_accent</item>
 		<item name="android:textColor">@color/lumen_text</item>
 		<item name="android:windowBackground">@drawable/bg_hud</item>
+		<item name="lumenScrimHero">@drawable/scrim_hero</item>
+		<item name="lumenBg">@color/lumen_bg</item>
+		<item name="lumenSidebar">@color/lumen_sidebar</item>
+		<item name="lumenSurface">@color/lumen_surface</item>
+		<item name="lumenSurface2">@color/lumen_surface_2</item>
+		<item name="lumenBorder">@color/lumen_border</item>
+		<item name="lumenPanel">@color/lumen_panel</item>
+		<item name="lumenAccent">@color/lumen_accent</item>
+		<item name="lumenAccent2">@color/lumen_accent_2</item>
+		<item name="lumenAccentDim">@color/lumen_accent_dim</item>
+		<item name="lumenText">@color/lumen_text</item>
+		<item name="lumenText2">@color/lumen_text_2</item>
+		<item name="lumenText3">@color/lumen_text_3</item>
+		<item name="lumenTrack">@color/lumen_track</item>
+		<item name="lumenBuffer">@color/lumen_buffer</item>
+		<item name="lumenFocus">@color/lumen_focus</item>
+		<item name="lumenOnFocus">@color/lumen_on_focus</item>
+		<item name="lumenScrim">@color/lumen_scrim</item>
+		<item name="lumenDivider">@color/lumen_divider</item>
+		<item name="lumenSegment">@color/lumen_segment</item>
+		<item name="lumenGreen">@color/lumen_green</item>
+		<item name="lumenGreenBg">@color/lumen_green_bg</item>
+		<item name="lumenRed">@color/lumen_red</item>
+		<item name="lumenPillIdle">@color/lumen_pill_idle</item>
+		<item name="lumenHud">@color/lumen_hud</item>
+		<item name="lumenHairline">@color/lumen_hairline</item>
+		<item name="lumenAccentGlow">@color/lumen_accent_glow</item>
+		<item name="lumenAccentFaint">@color/lumen_accent_faint</item>
+		<item name="lumenTag">@color/lumen_tag</item>
+		<item name="lumenTrackBg">@color/lumen_track_bg</item>
+		<item name="lumenFocusText2">@color/lumen_focus_text_2</item>
+		<item name="lumenTextDisabled">@color/lumen_text_disabled</item>
+		<item name="lumenAmber">@color/lumen_amber</item>
 	</style>
 
 	<style name="Theme.Lumen.Player" parent="Theme.Lumen">
+		<item name="android:windowBackground">@android:color/black</item>
+		<item name="android:windowFullscreen">true</item>
+		<item name="android:windowNoTitle">true</item>
+		<item name="android:windowContentOverlay">@null</item>
+	</style>
+
+	<style name="Theme.Glass" parent="@android:style/Theme.DeviceDefault.NoActionBar">
+		<item name="android:windowBackground">@drawable/bg_glass_window</item>
+		<item name="android:colorAccent">@color/glass_accent</item>
+		<item name="android:colorPrimary">@color/glass_bg</item>
+		<item name="android:colorPrimaryDark">@color/glass_bg</item>
+		<item name="android:statusBarColor">@color/glass_bg</item>
+		<item name="android:navigationBarColor">@color/glass_bg</item>
+		<item name="android:textColor">@color/glass_text</item>
+		<item name="android:textColorHint">@color/glass_text_3</item>
+		<item name="android:fontFamily">@font/dmsans_regular</item>
+		<item name="android:windowAnimationStyle">@android:style/Animation.Activity</item>
+		<item name="android:alertDialogTheme">@style/Theme.Glass.Dialog</item>
+		<item name="lumenScrimHero">@drawable/scrim_glass</item>
+		<item name="lumenBg">@color/glass_bg</item>
+		<item name="lumenSidebar">@color/glass_sidebar</item>
+		<item name="lumenSurface">@color/glass_surface</item>
+		<item name="lumenSurface2">@color/glass_surface_2</item>
+		<item name="lumenBorder">@color/glass_border</item>
+		<item name="lumenPanel">@color/glass_panel</item>
+		<item name="lumenAccent">@color/glass_accent</item>
+		<item name="lumenAccent2">@color/glass_accent_2</item>
+		<item name="lumenAccentDim">@color/glass_accent_dim</item>
+		<item name="lumenText">@color/glass_text</item>
+		<item name="lumenText2">@color/glass_text_2</item>
+		<item name="lumenText3">@color/glass_text_3</item>
+		<item name="lumenTrack">@color/glass_track</item>
+		<item name="lumenBuffer">@color/glass_buffer</item>
+		<item name="lumenFocus">@color/glass_focus</item>
+		<item name="lumenOnFocus">@color/glass_on_focus</item>
+		<item name="lumenScrim">@color/glass_scrim</item>
+		<item name="lumenDivider">@color/glass_divider</item>
+		<item name="lumenSegment">@color/glass_segment</item>
+		<item name="lumenGreen">@color/glass_green</item>
+		<item name="lumenGreenBg">@color/glass_green_bg</item>
+		<item name="lumenRed">@color/glass_red</item>
+		<item name="lumenPillIdle">@color/glass_pill_idle</item>
+		<item name="lumenHud">@color/glass_hud</item>
+		<item name="lumenHairline">@color/glass_hairline</item>
+		<item name="lumenAccentGlow">@color/glass_accent_glow</item>
+		<item name="lumenAccentFaint">@color/glass_accent_faint</item>
+		<item name="lumenTag">@color/glass_tag</item>
+		<item name="lumenTrackBg">@color/glass_track_bg</item>
+		<item name="lumenFocusText2">@color/glass_focus_text_2</item>
+		<item name="lumenTextDisabled">@color/glass_text_disabled</item>
+		<item name="lumenAmber">@color/glass_amber</item>
+	</style>
+
+	<style name="Theme.Glass.Dialog" parent="@android:style/Theme.DeviceDefault.Dialog.Alert">
+		<item name="android:colorAccent">@color/glass_accent</item>
+		<item name="android:textColor">@color/glass_text</item>
+		<item name="android:windowBackground">@drawable/bg_hud</item>
+		<item name="lumenScrimHero">@drawable/scrim_glass</item>
+		<item name="lumenBg">@color/glass_bg</item>
+		<item name="lumenSidebar">@color/glass_sidebar</item>
+		<item name="lumenSurface">@color/glass_surface</item>
+		<item name="lumenSurface2">@color/glass_surface_2</item>
+		<item name="lumenBorder">@color/glass_border</item>
+		<item name="lumenPanel">@color/glass_panel</item>
+		<item name="lumenAccent">@color/glass_accent</item>
+		<item name="lumenAccent2">@color/glass_accent_2</item>
+		<item name="lumenAccentDim">@color/glass_accent_dim</item>
+		<item name="lumenText">@color/glass_text</item>
+		<item name="lumenText2">@color/glass_text_2</item>
+		<item name="lumenText3">@color/glass_text_3</item>
+		<item name="lumenTrack">@color/glass_track</item>
+		<item name="lumenBuffer">@color/glass_buffer</item>
+		<item name="lumenFocus">@color/glass_focus</item>
+		<item name="lumenOnFocus">@color/glass_on_focus</item>
+		<item name="lumenScrim">@color/glass_scrim</item>
+		<item name="lumenDivider">@color/glass_divider</item>
+		<item name="lumenSegment">@color/glass_segment</item>
+		<item name="lumenGreen">@color/glass_green</item>
+		<item name="lumenGreenBg">@color/glass_green_bg</item>
+		<item name="lumenRed">@color/glass_red</item>
+		<item name="lumenPillIdle">@color/glass_pill_idle</item>
+		<item name="lumenHud">@color/glass_hud</item>
+		<item name="lumenHairline">@color/glass_hairline</item>
+		<item name="lumenAccentGlow">@color/glass_accent_glow</item>
+		<item name="lumenAccentFaint">@color/glass_accent_faint</item>
+		<item name="lumenTag">@color/glass_tag</item>
+		<item name="lumenTrackBg">@color/glass_track_bg</item>
+		<item name="lumenFocusText2">@color/glass_focus_text_2</item>
+		<item name="lumenTextDisabled">@color/glass_text_disabled</item>
+		<item name="lumenAmber">@color/glass_amber</item>
+	</style>
+
+	<style name="Theme.Glass.Player" parent="Theme.Glass">
+		<item name="android:windowBackground">@android:color/black</item>
+		<item name="android:windowFullscreen">true</item>
+		<item name="android:windowNoTitle">true</item>
+		<item name="android:windowContentOverlay">@null</item>
+	</style>
+
+	<style name="Theme.Purple" parent="@android:style/Theme.DeviceDefault.NoActionBar">
+		<item name="android:windowBackground">@color/purple_bg</item>
+		<item name="android:colorAccent">@color/purple_accent</item>
+		<item name="android:colorPrimary">@color/purple_bg</item>
+		<item name="android:colorPrimaryDark">@color/purple_bg</item>
+		<item name="android:statusBarColor">@color/purple_bg</item>
+		<item name="android:navigationBarColor">@color/purple_bg</item>
+		<item name="android:textColor">@color/purple_text</item>
+		<item name="android:textColorHint">@color/purple_text_3</item>
+		<item name="android:fontFamily">@font/dmsans_regular</item>
+		<item name="android:windowAnimationStyle">@android:style/Animation.Activity</item>
+		<item name="android:alertDialogTheme">@style/Theme.Purple.Dialog</item>
+		<item name="lumenScrimHero">@drawable/scrim_purple</item>
+		<item name="lumenBg">@color/purple_bg</item>
+		<item name="lumenSidebar">@color/purple_sidebar</item>
+		<item name="lumenSurface">@color/purple_surface</item>
+		<item name="lumenSurface2">@color/purple_surface_2</item>
+		<item name="lumenBorder">@color/purple_border</item>
+		<item name="lumenPanel">@color/purple_panel</item>
+		<item name="lumenAccent">@color/purple_accent</item>
+		<item name="lumenAccent2">@color/purple_accent_2</item>
+		<item name="lumenAccentDim">@color/purple_accent_dim</item>
+		<item name="lumenText">@color/purple_text</item>
+		<item name="lumenText2">@color/purple_text_2</item>
+		<item name="lumenText3">@color/purple_text_3</item>
+		<item name="lumenTrack">@color/purple_track</item>
+		<item name="lumenBuffer">@color/purple_buffer</item>
+		<item name="lumenFocus">@color/purple_focus</item>
+		<item name="lumenOnFocus">@color/purple_on_focus</item>
+		<item name="lumenScrim">@color/purple_scrim</item>
+		<item name="lumenDivider">@color/purple_divider</item>
+		<item name="lumenSegment">@color/purple_segment</item>
+		<item name="lumenGreen">@color/purple_green</item>
+		<item name="lumenGreenBg">@color/purple_green_bg</item>
+		<item name="lumenRed">@color/purple_red</item>
+		<item name="lumenPillIdle">@color/purple_pill_idle</item>
+		<item name="lumenHud">@color/purple_hud</item>
+		<item name="lumenHairline">@color/purple_hairline</item>
+		<item name="lumenAccentGlow">@color/purple_accent_glow</item>
+		<item name="lumenAccentFaint">@color/purple_accent_faint</item>
+		<item name="lumenTag">@color/purple_tag</item>
+		<item name="lumenTrackBg">@color/purple_track_bg</item>
+		<item name="lumenFocusText2">@color/purple_focus_text_2</item>
+		<item name="lumenTextDisabled">@color/purple_text_disabled</item>
+		<item name="lumenAmber">@color/purple_amber</item>
+	</style>
+
+	<style name="Theme.Purple.Dialog" parent="@android:style/Theme.DeviceDefault.Dialog.Alert">
+		<item name="android:colorAccent">@color/purple_accent</item>
+		<item name="android:textColor">@color/purple_text</item>
+		<item name="android:windowBackground">@drawable/bg_hud</item>
+		<item name="lumenScrimHero">@drawable/scrim_purple</item>
+		<item name="lumenBg">@color/purple_bg</item>
+		<item name="lumenSidebar">@color/purple_sidebar</item>
+		<item name="lumenSurface">@color/purple_surface</item>
+		<item name="lumenSurface2">@color/purple_surface_2</item>
+		<item name="lumenBorder">@color/purple_border</item>
+		<item name="lumenPanel">@color/purple_panel</item>
+		<item name="lumenAccent">@color/purple_accent</item>
+		<item name="lumenAccent2">@color/purple_accent_2</item>
+		<item name="lumenAccentDim">@color/purple_accent_dim</item>
+		<item name="lumenText">@color/purple_text</item>
+		<item name="lumenText2">@color/purple_text_2</item>
+		<item name="lumenText3">@color/purple_text_3</item>
+		<item name="lumenTrack">@color/purple_track</item>
+		<item name="lumenBuffer">@color/purple_buffer</item>
+		<item name="lumenFocus">@color/purple_focus</item>
+		<item name="lumenOnFocus">@color/purple_on_focus</item>
+		<item name="lumenScrim">@color/purple_scrim</item>
+		<item name="lumenDivider">@color/purple_divider</item>
+		<item name="lumenSegment">@color/purple_segment</item>
+		<item name="lumenGreen">@color/purple_green</item>
+		<item name="lumenGreenBg">@color/purple_green_bg</item>
+		<item name="lumenRed">@color/purple_red</item>
+		<item name="lumenPillIdle">@color/purple_pill_idle</item>
+		<item name="lumenHud">@color/purple_hud</item>
+		<item name="lumenHairline">@color/purple_hairline</item>
+		<item name="lumenAccentGlow">@color/purple_accent_glow</item>
+		<item name="lumenAccentFaint">@color/purple_accent_faint</item>
+		<item name="lumenTag">@color/purple_tag</item>
+		<item name="lumenTrackBg">@color/purple_track_bg</item>
+		<item name="lumenFocusText2">@color/purple_focus_text_2</item>
+		<item name="lumenTextDisabled">@color/purple_text_disabled</item>
+		<item name="lumenAmber">@color/purple_amber</item>
+	</style>
+
+	<style name="Theme.Purple.Player" parent="Theme.Purple">
 		<item name="android:windowBackground">@android:color/black</item>
 		<item name="android:windowFullscreen">true</item>
 		<item name="android:windowNoTitle">true</item>
@@ -55,6 +307,6 @@
 
 	<style name="Lumen.Heading" parent="">
 		<item name="android:fontFamily">@font/fraunces_black_italic</item>
-		<item name="android:textColor">@color/lumen_text</item>
+		<item name="android:textColor">?attr/lumenText</item>
 	</style>
 </resources>

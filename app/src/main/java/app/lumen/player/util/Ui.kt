@@ -1,7 +1,9 @@
 package app.lumen.player.util
 
 import android.content.Context
+import android.content.res.ColorStateList
 import android.graphics.Typeface
+import android.util.TypedValue
 import android.view.View
 import android.widget.TextView
 import androidx.core.content.res.ResourcesCompat
@@ -16,10 +18,21 @@ object Ui {
 	fun dp(context: Context, value: Float): Int = (value * context.resources.displayMetrics.density + 0.5f).toInt()
 	fun dp(context: Context, value: Int): Int = dp(context, value.toFloat())
 
-	/** Fraunces Black Italic, the Li'Server heading face. */
-	fun display(context: Context): Typeface =
-		display ?: (runCatching { ResourcesCompat.getFont(context, R.font.fraunces_black_italic) }.getOrNull()
+	/** Heading face: Fraunces Black Italic in the amber theme, clean bold sans in Glass / purple. */
+	fun display(context: Context): Typeface {
+		if (Themes.current != Themes.AMBER) return bold(context)
+		return display ?: (runCatching { ResourcesCompat.getFont(context, R.font.fraunces_black_italic) }.getOrNull()
 			?: Typeface.create(Typeface.SERIF, Typeface.BOLD_ITALIC)).also { display = it }
+	}
+
+	/** A palette color of the current theme (see res/values/attrs.xml). */
+	fun color(context: Context, attr: Int): Int {
+		val value = TypedValue()
+		if (!context.theme.resolveAttribute(attr, value, true)) return 0xFFFF00FF.toInt()
+		return if (value.resourceId != 0) androidx.core.content.ContextCompat.getColor(context, value.resourceId) else value.data
+	}
+
+	fun colorList(context: Context, attr: Int): ColorStateList = ColorStateList.valueOf(color(context, attr))
 
 	fun medium(context: Context): Typeface =
 		medium ?: (runCatching { ResourcesCompat.getFont(context, R.font.dmsans_medium) }.getOrNull()

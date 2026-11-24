@@ -11,6 +11,7 @@ import android.view.KeyEvent
 import android.view.View
 import androidx.core.content.ContextCompat
 import app.lumen.player.R
+import app.lumen.player.util.Ui
 
 /**
  * D-pad friendly seek bar: rounded track, buffered range, gradient progress, chapter gaps and
@@ -43,19 +44,19 @@ class TimelineView @JvmOverloads constructor(
 		set(value) { field = value; invalidate() }
 
 	private val density = resources.displayMetrics.density
-	private val trackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ContextCompat.getColor(context, R.color.lumen_track) }
-	private val bufferPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ContextCompat.getColor(context, R.color.lumen_buffer) }
-	private val segmentPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ContextCompat.getColor(context, R.color.lumen_segment) }
+	private val trackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Ui.color(context, R.attr.lumenTrack) }
+	private val bufferPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Ui.color(context, R.attr.lumenBuffer) }
+	private val segmentPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Ui.color(context, R.attr.lumenSegment) }
 	private val progressPaint = Paint(Paint.ANTI_ALIAS_FLAG)
 	private val gapPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF000000.toInt() }
-	private val thumbPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ContextCompat.getColor(context, R.color.lumen_focus) }
+	private val thumbPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Ui.color(context, R.attr.lumenFocus) }
 	private val thumbRingPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-		color = 0x55F0A63A
+		color = Ui.color(context, R.attr.lumenAccentGlow)
 		style = Paint.Style.FILL
 	}
 	private val rect = RectF()
-	private val accent = ContextCompat.getColor(context, R.color.lumen_accent)
-	private val accent2 = ContextCompat.getColor(context, R.color.lumen_accent_2)
+	private val accent = Ui.color(context, R.attr.lumenAccent)
+	private val accent2 = Ui.color(context, R.attr.lumenAccent2)
 
 	init {
 		isFocusable = true

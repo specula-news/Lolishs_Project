@@ -23,6 +23,7 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
 import app.lumen.player.R
+import app.lumen.player.util.Ui
 import app.lumen.player.util.SecureStore
 import org.json.JSONObject
 
@@ -69,7 +70,7 @@ class TorrentActivity : BaseActivity() {
 			setSupportMultipleWindows(false)
 			userAgentString = userAgentString + " LolishTV"
 		}
-		web.setBackgroundColor(getColor(R.color.lumen_bg))
+		web.setBackgroundColor(Ui.color(this, R.attr.lumenBg))
 		web.addJavascriptInterface(Bridge(), "LolishBridge")
 		web.webViewClient = Client()
 		web.webChromeClient = object : WebChromeClient() {

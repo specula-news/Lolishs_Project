@@ -10,6 +10,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.content.ContextCompat
 import app.lumen.player.R
+import app.lumen.player.util.Ui
 import java.util.Locale
 
 /** Builds the TV-style list rows used by the player side panel and the settings screen. */
@@ -26,7 +27,7 @@ class PanelBuilder(private val container: LinearLayout) {
 			setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
 			letterSpacing = 0.12f
 			typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-			setTextColor(ContextCompat.getColor(context, R.color.lumen_text_3))
+			setTextColor(Ui.color(context, R.attr.lumenText3))
 			setPadding((14 * density).toInt(), if (container.childCount == 0) 0 else (18 * density).toInt(), 0, (8 * density).toInt())
 		}
 		container.addView(view)
@@ -36,7 +37,7 @@ class PanelBuilder(private val container: LinearLayout) {
 		val view = TextView(context).apply {
 			this.text = text
 			setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
-			setTextColor(ContextCompat.getColor(context, R.color.lumen_text_2))
+			setTextColor(Ui.color(context, R.attr.lumenText2))
 			setLineSpacing(0f, 1.25f)
 			setPadding((14 * density).toInt(), (6 * density).toInt(), (14 * density).toInt(), (10 * density).toInt())
 		}

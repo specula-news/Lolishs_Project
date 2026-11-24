@@ -132,6 +132,16 @@ class Prefs(context: Context) {
 		get() = int("ui_text_scale", 100)
 		set(value) = putInt("ui_text_scale", value)
 
+	/** [Themes.AMBER], [Themes.GLASS] or [Themes.PURPLE]. */
+	var theme: Int
+		get() = int("ui_theme", Themes.AMBER)
+		set(value) = putInt("ui_theme", value)
+
+	/** Navigation: 0 = sidebar on the left, 1 = bar on top. */
+	var navPosition: Int
+		get() = int("ui_nav_position", 0)
+		set(value) = putInt("ui_nav_position", value)
+
 	/** Page / row / button motion (off = everything appears instantly). */
 	var animations: Boolean
 		get() = bool("ui_animations", true)

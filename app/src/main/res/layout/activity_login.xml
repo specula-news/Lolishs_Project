@@ -2,7 +2,7 @@
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
 	android:layout_width="match_parent"
 	android:layout_height="match_parent"
-	android:background="@color/lumen_bg">
+	android:background="?attr/lumenBg">
 
 	<LinearLayout
 		android:layout_width="match_parent"
@@ -33,7 +33,7 @@
 				android:layout_marginTop="22dp"
 				android:fontFamily="@font/fraunces_black_italic"
 				android:text="@string/app_name"
-				android:textColor="@color/lumen_accent"
+				android:textColor="?attr/lumenAccent"
 				android:textSize="46sp" />
 
 			<TextView
@@ -41,7 +41,7 @@
 				android:layout_height="wrap_content"
 				android:layout_marginTop="6dp"
 				android:text="@string/app_tagline"
-				android:textColor="@color/lumen_text_2"
+				android:textColor="?attr/lumenText2"
 				android:textSize="18sp" />
 
 			<TextView
@@ -55,7 +55,7 @@
 				android:paddingTop="8dp"
 				android:paddingEnd="14dp"
 				android:paddingBottom="8dp"
-				android:textColor="@color/lumen_green"
+				android:textColor="?attr/lumenGreen"
 				android:textSize="14sp" />
 
 			<TextView
@@ -79,7 +79,7 @@
 				android:layout_height="wrap_content"
 				android:fontFamily="@font/fraunces_black_italic"
 				android:text="Who’s watching?"
-				android:textColor="@color/lumen_text"
+				android:textColor="?attr/lumenText"
 				android:textSize="32sp" />
 
 			<HorizontalScrollView
@@ -118,7 +118,7 @@
 					android:paddingStart="18dp"
 					android:paddingEnd="18dp"
 					android:singleLine="true"
-					android:textColor="@color/lumen_text"
+					android:textColor="?attr/lumenText"
 					android:textSize="18sp" />
 
 				<EditText
@@ -134,7 +134,7 @@
 					android:paddingStart="18dp"
 					android:paddingEnd="18dp"
 					android:singleLine="true"
-					android:textColor="@color/lumen_text"
+					android:textColor="?attr/lumenText"
 					android:textSize="18sp" />
 
 				<TextView
@@ -170,7 +170,7 @@
 				android:fontFamily="@font/dmsans_bold"
 				android:gravity="center"
 				android:letterSpacing="0.3"
-				android:textColor="@color/lumen_accent"
+				android:textColor="?attr/lumenAccent"
 				android:textSize="56sp"
 				android:visibility="gone" />
 
@@ -180,7 +180,7 @@
 				android:layout_height="wrap_content"
 				android:layout_marginTop="14dp"
 				android:lineSpacingMultiplier="1.2"
-				android:textColor="@color/lumen_text_2"
+				android:textColor="?attr/lumenText2"
 				android:textSize="15sp" />
 		</LinearLayout>
 	</LinearLayout>

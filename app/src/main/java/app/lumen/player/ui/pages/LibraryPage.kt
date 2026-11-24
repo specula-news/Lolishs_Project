@@ -84,12 +84,12 @@ open class LibraryPage(
 			text = titleOverride ?: library?.name ?: "Library"
 			typeface = Ui.display(host)
 			setTextSize(TypedValue.COMPLEX_UNIT_SP, 40f)
-			setTextColor(ContextCompat.getColor(host, R.color.lumen_text))
+			setTextColor(Ui.color(host, R.attr.lumenText))
 		})
 		countView.apply {
 			typeface = Ui.display(host)
 			setTextSize(TypedValue.COMPLEX_UNIT_SP, 30f)
-			setTextColor(ContextCompat.getColor(host, R.color.lumen_text_3))
+			setTextColor(Ui.color(host, R.attr.lumenText3))
 			setPadding(Ui.dp(host, 14), 0, 0, Ui.dp(host, 3))
 		}
 		header.addView(countView)
@@ -114,7 +114,7 @@ open class LibraryPage(
 
 		emptyView.apply {
 			visibility = View.GONE
-			setTextColor(ContextCompat.getColor(host, R.color.lumen_text_2))
+			setTextColor(Ui.color(host, R.attr.lumenText2))
 			setTextSize(TypedValue.COMPLEX_UNIT_SP, 17f)
 			setPadding(Ui.dp(host, 8), Ui.dp(host, 24), 0, 0)
 		}

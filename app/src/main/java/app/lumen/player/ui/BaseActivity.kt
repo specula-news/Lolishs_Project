@@ -28,6 +28,7 @@ abstract class BaseActivity : ComponentActivity() {
 	}
 
 	override fun onCreate(savedInstanceState: Bundle?) {
+		app.lumen.player.util.Themes.apply(this, Prefs(this))
 		super.onCreate(savedInstanceState)
 		prefs = Prefs(this)
 		api = JellyfinApi(prefs)

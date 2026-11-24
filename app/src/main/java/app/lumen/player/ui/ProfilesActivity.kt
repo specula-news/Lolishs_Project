@@ -28,7 +28,7 @@ class ProfilesActivity : BaseActivity() {
 		val root = LinearLayout(this).apply {
 			orientation = LinearLayout.VERTICAL
 			gravity = Gravity.CENTER
-			setBackgroundColor(ContextCompat.getColor(context, R.color.lumen_bg))
+			setBackgroundColor(Ui.color(context, R.attr.lumenBg))
 			setPadding(Ui.dp(context, 64), Ui.dp(context, 40), Ui.dp(context, 64), Ui.dp(context, 40))
 		}
 		root.addView(ImageView(this).apply { setImageResource(R.drawable.logo) }, LinearLayout.LayoutParams(Ui.dp(this, 64), Ui.dp(this, 64)))
@@ -36,7 +36,7 @@ class ProfilesActivity : BaseActivity() {
 			text = "Who's watching?"
 			typeface = Ui.display(context)
 			setTextSize(TypedValue.COMPLEX_UNIT_SP, 44f)
-			setTextColor(ContextCompat.getColor(context, R.color.lumen_accent))
+			setTextColor(Ui.color(context, R.attr.lumenAccent))
 			setPadding(0, Ui.dp(context, 16), 0, Ui.dp(context, 28))
 		})
 		row = LinearLayout(this).apply {
@@ -56,7 +56,7 @@ class ProfilesActivity : BaseActivity() {
 		hint = TextView(this).apply {
 			text = "Hold OK on a profile to remove it from this TV"
 			setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
-			setTextColor(ContextCompat.getColor(context, R.color.lumen_text_3))
+			setTextColor(Ui.color(context, R.attr.lumenText3))
 			setPadding(0, Ui.dp(context, 28), 0, 0)
 		}
 		root.addView(hint)
@@ -121,7 +121,7 @@ class ProfilesActivity : BaseActivity() {
 			gravity = Gravity.CENTER
 			typeface = Ui.display(context)
 			setTextSize(TypedValue.COMPLEX_UNIT_SP, 48f)
-			setTextColor(ContextCompat.getColor(context, R.color.lumen_accent))
+			setTextColor(Ui.color(context, R.attr.lumenAccent))
 		}, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
 		if (imageUrl != null) {
 			val image = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP }
@@ -145,7 +145,7 @@ class ProfilesActivity : BaseActivity() {
 				gravity = Gravity.CENTER
 				maxLines = 1
 				setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
-				setTextColor(ContextCompat.getColor(context, R.color.lumen_text_3))
+				setTextColor(Ui.color(context, R.attr.lumenText3))
 			})
 		}
 		Ui.focusScale(tile, 1.08f)

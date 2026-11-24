@@ -198,6 +198,7 @@ class PlayerActivity : ComponentActivity(), EngineListener, TimelineView.Listene
 	}
 
 	override fun onCreate(savedInstanceState: Bundle?) {
+		app.lumen.player.util.Themes.apply(this, Prefs(this), player = true)
 		super.onCreate(savedInstanceState)
 		setContentView(R.layout.activity_player)
 		prefs = Prefs(this)
@@ -1485,7 +1486,7 @@ class PlayerActivity : ComponentActivity(), EngineListener, TimelineView.Listene
 				text = label
 				setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
 				typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-				setTextColor(ContextCompat.getColor(this@PlayerActivity, R.color.lumen_text))
+				setTextColor(Ui.color(this@PlayerActivity, R.attr.lumenText))
 				background = ContextCompat.getDrawable(this@PlayerActivity, R.drawable.bg_tag)
 				setPadding((8 * density).toInt(), (3 * density).toInt(), (8 * density).toInt(), (3 * density).toInt())
 			}

@@ -67,7 +67,7 @@ class SettingsPage(host: MainActivity, private val scrollToAccount: Boolean = fa
 		}
 		updates.addView(android.widget.TextView(host).apply {
 			text = "Lolish's Project ${BuildConfig.VERSION_NAME}"
-			setTextColor(androidx.core.content.ContextCompat.getColor(host, app.lumen.player.R.color.lumen_text_2))
+			setTextColor(Ui.color(host, app.lumen.player.R.attr.lumenText2))
 			setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 15f)
 			setPadding(0, 0, Ui.dp(host, 18), 0)
 		})
@@ -153,6 +153,12 @@ class SettingsPage(host: MainActivity, private val scrollToAccount: Boolean = fa
 	}
 
 	private fun buildAppearance(b: PanelBuilder) {
+		b.stepper("Theme", "Lolish amber · Glass (frosted pane over the artwork) · Li'Server purple", value = { app.lumen.player.util.Themes.NAMES[prefs.theme.coerceIn(0, 2)] }) { d, _ ->
+			appearance { prefs.theme = (prefs.theme + d + 3) % 3 }
+		}
+		b.stepper("Navigation", "Sidebar on the left, or a see-through bar across the top", value = { if (prefs.navPosition == 1) "Top" else "Left" }) { _, _ ->
+			appearance { prefs.navPosition = if (prefs.navPosition == 1) 0 else 1 }
+		}
 		b.stepper("Poster size", value = { SIZES4[prefs.posterSize.coerceIn(0, 3)] }) { d, _ ->
 			appearance { prefs.posterSize = (prefs.posterSize + d).coerceIn(0, 3) }
 		}

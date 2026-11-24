@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Darkens the left and bottom of the Glass hero card so its text stays readable. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+	<item>
+		<shape android:shape="rectangle">
+			<gradient android:angle="0" android:startColor="#F2000000" android:centerColor="#99000000" android:endColor="#00000000" />
+		</shape>
+	</item>
+	<item>
+		<shape android:shape="rectangle">
+			<gradient android:angle="90" android:startColor="#B3000000" android:centerColor="#26000000" android:endColor="#00000000" />
+		</shape>
+	</item>
+</layer-list>

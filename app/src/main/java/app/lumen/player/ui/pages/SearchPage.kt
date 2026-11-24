@@ -45,22 +45,22 @@ class SearchPage(host: MainActivity) : Page(host) {
 			setSingleLine()
 			imeOptions = EditorInfo.IME_ACTION_SEARCH
 			background = ContextCompat.getDrawable(host, R.drawable.bg_edit)
-			setTextColor(ContextCompat.getColor(host, R.color.lumen_text))
-			setHintTextColor(ContextCompat.getColor(host, R.color.lumen_text_3))
+			setTextColor(Ui.color(host, R.attr.lumenText))
+			setHintTextColor(Ui.color(host, R.attr.lumenText3))
 			setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
 			typeface = Ui.medium(host)
 			setPadding(Ui.dp(host, 20), 0, Ui.dp(host, 20), 0)
 			val icon = ContextCompat.getDrawable(host, R.drawable.ic_search)?.mutate()?.apply {
 				val size = Ui.dp(host, 24)
 				setBounds(0, 0, size, size)
-				setTint(ContextCompat.getColor(host, R.color.lumen_accent))
+				setTint(Ui.color(host, R.attr.lumenAccent))
 			}
 			setCompoundDrawablesRelative(icon, null, null, null)
 			compoundDrawablePadding = Ui.dp(host, 14)
 		}
 		root.addView(input, LinearLayout.LayoutParams(Ui.dp(host, 720), Ui.dp(host, 60)).apply { topMargin = Ui.dp(host, 16) })
 		status.apply {
-			setTextColor(ContextCompat.getColor(host, R.color.lumen_text_2))
+			setTextColor(Ui.color(host, R.attr.lumenText2))
 			setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
 			setPadding(Ui.dp(host, 6), Ui.dp(host, 14), 0, 0)
 			text = "Type at least two letters. Press OK on the field to open the keyboard."

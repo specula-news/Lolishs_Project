@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+	<attr name="lumenBg" format="color" />
+	<attr name="lumenSidebar" format="color" />
+	<attr name="lumenSurface" format="color" />
+	<attr name="lumenSurface2" format="color" />
+	<attr name="lumenBorder" format="color" />
+	<attr name="lumenPanel" format="color" />
+	<attr name="lumenAccent" format="color" />
+	<attr name="lumenAccent2" format="color" />
+	<attr name="lumenAccentDim" format="color" />
+	<attr name="lumenText" format="color" />
+	<attr name="lumenText2" format="color" />
+	<attr name="lumenText3" format="color" />
+	<attr name="lumenTrack" format="color" />
+	<attr name="lumenBuffer" format="color" />
+	<attr name="lumenFocus" format="color" />
+	<attr name="lumenOnFocus" format="color" />
+	<attr name="lumenScrim" format="color" />
+	<attr name="lumenDivider" format="color" />
+	<attr name="lumenSegment" format="color" />
+	<attr name="lumenGreen" format="color" />
+	<attr name="lumenGreenBg" format="color" />
+	<attr name="lumenRed" format="color" />
+	<attr name="lumenPillIdle" format="color" />
+	<attr name="lumenHud" format="color" />
+	<attr name="lumenHairline" format="color" />
+	<attr name="lumenAccentGlow" format="color" />
+	<attr name="lumenAccentFaint" format="color" />
+	<attr name="lumenTag" format="color" />
+	<attr name="lumenTrackBg" format="color" />
+	<attr name="lumenFocusText2" format="color" />
+	<attr name="lumenTextDisabled" format="color" />
+	<attr name="lumenAmber" format="color" />
+	<!-- Drawable behind the content that fades the backdrop artwork into the theme. -->
+	<attr name="lumenScrimHero" format="reference" />
+</resources>

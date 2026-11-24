@@ -2,7 +2,7 @@
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
 	android:layout_width="match_parent"
 	android:layout_height="match_parent"
-	android:background="@color/lumen_bg">
+	android:background="?attr/lumenBg">
 
 	<app.lumen.player.ui.CursorLayout
 		android:id="@+id/cursor"
@@ -13,7 +13,7 @@
 			android:id="@+id/web"
 			android:layout_width="match_parent"
 			android:layout_height="match_parent"
-			android:background="@color/lumen_bg" />
+			android:background="?attr/lumenBg" />
 	</app.lumen.player.ui.CursorLayout>
 
 	<ProgressBar
@@ -44,7 +44,7 @@
 			android:layout_height="22dp"
 			android:importantForAccessibility="no"
 			android:src="@drawable/ic_mouse"
-			android:tint="@color/lumen_accent" />
+			android:tint="?attr/lumenAccent" />
 
 		<TextView
 			android:id="@+id/hint_text"
@@ -52,7 +52,7 @@
 			android:layout_height="wrap_content"
 			android:layout_marginStart="12dp"
 			android:fontFamily="@font/dmsans_medium"
-			android:textColor="@color/lumen_text"
+			android:textColor="?attr/lumenText"
 			android:textSize="15sp" />
 	</LinearLayout>
 
@@ -71,7 +71,7 @@
 			android:layout_height="wrap_content"
 			android:fontFamily="@font/fraunces_black_italic"
 			android:text="Li’Server isn’t reachable"
-			android:textColor="@color/lumen_text"
+			android:textColor="?attr/lumenText"
 			android:textSize="24sp" />
 
 		<TextView
@@ -79,7 +79,7 @@
 			android:layout_width="match_parent"
 			android:layout_height="wrap_content"
 			android:layout_marginTop="8dp"
-			android:textColor="@color/lumen_text_2"
+			android:textColor="?attr/lumenText2"
 			android:textSize="15sp" />
 
 		<LinearLayout

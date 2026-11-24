@@ -3,14 +3,14 @@
 	<item android:id="@android:id/background">
 		<shape android:shape="rectangle">
 			<corners android:radius="2dp" />
-			<solid android:color="#99131110" />
+			<solid android:color="?attr/lumenTrackBg" />
 		</shape>
 	</item>
 	<item android:id="@android:id/progress">
 		<clip>
 			<shape android:shape="rectangle">
 				<corners android:radius="2dp" />
-				<solid android:color="@color/lumen_accent" />
+				<solid android:color="?attr/lumenAccent" />
 			</shape>
 		</clip>
 	</item>

@@ -123,12 +123,12 @@ class UpdateFlow(private val activity: BaseActivity, private val toast: (String)
 		val bar = ProgressBar(activity, null, android.R.attr.progressBarStyleHorizontal).apply {
 			max = 100
 			isIndeterminate = release.apkSize <= 0
-			progressTintList = ContextCompat.getColorStateList(activity, R.color.lumen_accent)
+			progressTintList = Ui.colorList(activity, R.attr.lumenAccent)
 		}
 		val label = TextView(activity).apply {
 			text = "Downloading ${release.version}…"
 			setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
-			setTextColor(ContextCompat.getColor(activity, R.color.lumen_text_2))
+			setTextColor(Ui.color(activity, R.attr.lumenText2))
 		}
 		val box = LinearLayout(activity).apply {
 			orientation = LinearLayout.VERTICAL

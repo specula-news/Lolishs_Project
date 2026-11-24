@@ -12,6 +12,7 @@ import android.view.View
 import android.widget.FrameLayout
 import androidx.core.content.ContextCompat
 import app.lumen.player.R
+import app.lumen.player.util.Ui
 
 /**
  * Turns the remote into a mouse for web pages: arrows move a pointer, OK clicks, and pushing
@@ -35,15 +36,15 @@ class CursorLayout @JvmOverloads constructor(
 	private val ring = Paint(Paint.ANTI_ALIAS_FLAG).apply {
 		style = Paint.Style.STROKE
 		strokeWidth = 3f * density
-		color = ContextCompat.getColor(context, R.color.lumen_accent)
+		color = Ui.color(context, R.attr.lumenAccent)
 	}
 	private val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
 		style = Paint.Style.FILL
-		color = 0x55F0A63A
+		color = Ui.color(context, R.attr.lumenAccentGlow)
 	}
 	private val dot = Paint(Paint.ANTI_ALIAS_FLAG).apply {
 		style = Paint.Style.FILL
-		color = ContextCompat.getColor(context, R.color.lumen_text)
+		color = Ui.color(context, R.attr.lumenText)
 	}
 
 	init {

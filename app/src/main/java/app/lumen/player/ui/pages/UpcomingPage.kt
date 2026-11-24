@@ -30,7 +30,7 @@ class UpcomingPage(host: MainActivity) : Page(host) {
 	init {
 		root.addView(host.cards.heading("Upcoming Shows", null, 40f))
 		message.apply {
-			setTextColor(ContextCompat.getColor(host, R.color.lumen_text_2))
+			setTextColor(Ui.color(host, R.attr.lumenText2))
 			setTextSize(TypedValue.COMPLEX_UNIT_SP, 17f)
 			setPadding(Ui.dp(host, 8), Ui.dp(host, 20), 0, 0)
 			visibility = View.GONE

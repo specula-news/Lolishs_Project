@@ -11,6 +11,8 @@ import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import android.widget.HorizontalScrollView
+import android.widget.ScrollView
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -55,6 +57,9 @@ class MainActivity : BaseActivity() {
 	private var pendingBackdrop: String? = null
 	private var shownBackdrop: String? = null
 	private var sidebarExpanded = true
+	/** Navigation as a bar across the top instead of the sidebar (Settings → Appearance). */
+	private val topNav: Boolean get() = prefs.navPosition == 1
+	private val glass: Boolean get() = app.lumen.player.util.Themes.isGlass
 	private lateinit var updates: UpdateFlow
 
 	private class NavItem(val view: View, val label: TextView, val key: String, val factory: (() -> Page)?, val action: (() -> Unit)?)
@@ -96,6 +101,7 @@ class MainActivity : BaseActivity() {
 		toastView = findViewById(R.id.toast)
 		brandText.text = getString(R.string.app_name)
 		updates = UpdateFlow(this) { message -> toast(message) }
+		applyShellStyle()
 
 		buildNav(emptyList())
 		val start = startItem()
@@ -223,6 +229,51 @@ class MainActivity : BaseActivity() {
 		applySidebarMode(sidebar.findFocus() != null)
 	}
 
+	/**
+	 * Glass theme: everything sits on one frosted, rounded pane floating over the blurred artwork.
+	 * Navigation on top: the sidebar is turned into a translucent bar across the top.
+	 */
+	private fun applyShellStyle() {
+		val shell = findViewById<LinearLayout>(R.id.shell)
+		brandText.typeface = Ui.display(this)
+		if (glass) {
+			// The room-tone gradient shows when no artwork is behind the pane.
+			(shell.parent as View).background = ContextCompat.getDrawable(this, R.drawable.bg_glass_window)
+			shell.background = ContextCompat.getDrawable(this, R.drawable.bg_glass_panel)
+			(shell.layoutParams as FrameLayout.LayoutParams).setMargins(Ui.dp(this, 26), Ui.dp(this, 20), Ui.dp(this, 26), Ui.dp(this, 20))
+			shell.clipToOutline = true
+			backdrop.scaleType = ImageView.ScaleType.CENTER_CROP
+		}
+		if (!topNav) return
+		shell.orientation = LinearLayout.VERTICAL
+		sidebar.orientation = LinearLayout.HORIZONTAL
+		sidebar.gravity = Gravity.CENTER_VERTICAL
+		sidebar.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+		sidebar.setPadding(Ui.dp(this, 26), Ui.dp(this, 14), Ui.dp(this, 22), Ui.dp(this, 12))
+		// See-through bar: the theme's sidebar color, partly transparent over the artwork.
+		if (!glass) sidebar.background = android.graphics.drawable.ColorDrawable(Ui.color(this, R.attr.lumenSidebar)).apply { alpha = 190 }
+		findViewById<View>(R.id.brand).layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+		val scroll = findViewById<ScrollView>(R.id.nav_scroll)
+		val index = sidebar.indexOfChild(scroll)
+		scroll.removeView(navList)
+		sidebar.removeView(scroll)
+		navList.orientation = LinearLayout.HORIZONTAL
+		navList.gravity = Gravity.CENTER_VERTICAL
+		val strip = HorizontalScrollView(this).apply {
+			isHorizontalScrollBarEnabled = false
+			isFillViewport = false
+			clipToPadding = false
+			addView(navList)
+		}
+		sidebar.addView(strip, index, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
+			marginStart = Ui.dp(this@MainActivity, 26)
+			marginEnd = Ui.dp(this@MainActivity, 12)
+		})
+		navBottom.orientation = LinearLayout.HORIZONTAL
+		navBottom.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+		findViewById<View>(R.id.nav_divider).layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 1))
+	}
+
 	/** Sidebar icons follow "Icon size", a bit smaller in the compact sidebar. */
 	private fun sidebarIconDp(): Int = (Ui.iconDp(prefs) - if (prefs.sidebarSize == 0) 2 else 0).coerceAtLeast(16)
 
@@ -242,22 +293,36 @@ class MainActivity : BaseActivity() {
 			background = ContextCompat.getDrawable(this@MainActivity, R.drawable.bg_nav)
 			isFocusable = true
 			isClickable = true
-			val vertical = when (prefs.sidebarSize) { 0 -> 6; 2 -> 13; else -> 10 }
-			setPadding(Ui.dp(context, 12), Ui.dp(context, vertical), Ui.dp(context, 12), Ui.dp(context, vertical))
+			val vertical = when (prefs.sidebarSize) { 0 -> 6; 2 -> 13; else -> 10 } + if (topNav) 2 else 0
+			val horizontal = if (topNav) 16 else 12
+			setPadding(Ui.dp(context, horizontal), Ui.dp(context, vertical), Ui.dp(context, horizontal), Ui.dp(context, vertical))
 		}
+		// Glass: Search is a rounded search field at the top of the sidebar, like the reference design.
+		val searchField = glass && !topNav && key == "search"
+		if (searchField) row.background = ContextCompat.getDrawable(this, R.drawable.bg_search_pill)
 		val iconSize = Ui.dp(this, sidebarIconDp())
 		val image = ImageView(this).apply {
 			setImageResource(icon)
 			imageTintList = ContextCompat.getColorStateList(this@MainActivity, R.color.nav_text)
 			duplicateParentStateEnabled(this)
 		}
-		row.addView(image, LinearLayout.LayoutParams(iconSize, iconSize))
+		val avatarUrl = if (key == "user") prefs.activeAccount?.imageUrl(160) else null
+		if (avatarUrl != null) {
+			// The signed-in user's picture, round, instead of the person icon.
+			image.imageTintList = null
+			image.background = ContextCompat.getDrawable(this, R.drawable.bg_avatar)
+			image.scaleType = ImageView.ScaleType.CENTER_CROP
+			image.clipToOutline = true
+			Images.load(image, avatarUrl)
+		}
+		val avatarSize = if (avatarUrl != null) iconSize + Ui.dp(this, 8) else iconSize
+		row.addView(image, LinearLayout.LayoutParams(avatarSize, avatarSize))
 		val texts = LinearLayout(this).apply {
 			orientation = LinearLayout.VERTICAL
 			isDuplicateParentStateEnabled = true
 		}
 		val labelView = TextView(this).apply {
-			text = label
+			text = if (searchField) "Search…" else label
 			maxLines = 1
 			typeface = Ui.bold(context)
 			setTextSize(TypedValue.COMPLEX_UNIT_SP, when (prefs.sidebarSize) { 0 -> 14f; 2 -> 18f; else -> 16f })
@@ -265,19 +330,26 @@ class MainActivity : BaseActivity() {
 			isDuplicateParentStateEnabled = true
 		}
 		texts.addView(labelView)
-		if (subtitle != null) {
+		if (subtitle != null && !topNav && !searchField) {
 			texts.addView(TextView(this).apply {
 				text = subtitle
 				maxLines = 1
 				setTextSize(TypedValue.COMPLEX_UNIT_SP, if (prefs.sidebarSize == 0) 11f else 12f)
-				setTextColor(ContextCompat.getColor(this@MainActivity, R.color.lumen_text_3))
+				setTextColor(Ui.color(this@MainActivity, R.attr.lumenText3))
 			})
 		}
-		row.addView(texts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
-			marginStart = Ui.dp(this@MainActivity, 16)
-		})
-		val params = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-		params.bottomMargin = Ui.dp(this, if (prefs.sidebarSize == 0) 2 else 4)
+		val textParams = if (topNav) LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+		else LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+		row.addView(texts, textParams.apply { marginStart = Ui.dp(this@MainActivity, if (topNav) 10 else 16) })
+		val params = if (topNav) {
+			LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+				marginEnd = Ui.dp(this@MainActivity, 6)
+			}
+		} else {
+			LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+				bottomMargin = Ui.dp(this@MainActivity, if (searchField) 14 else if (prefs.sidebarSize == 0) 2 else 4)
+			}
+		}
 		parent.addView(row, params)
 
 		val item = NavItem(row, labelView, key, factory, action)
@@ -302,7 +374,7 @@ class MainActivity : BaseActivity() {
 		val hidden = prefs.navHidden
 		val hiddenSpecs = navSpecs.filter { it.key in hidden && it.key !in UNHIDEABLE }
 		val options = mutableListOf<Pair<String, () -> Unit>>()
-		options += "Move up / down" to { startMove(item) }
+		options += (if (topNav) "Move left / right" else "Move up / down") to { startMove(item) }
 		if (item.key !in UNHIDEABLE) options += "Hide \"$label\"" to { hideNavItem(item) }
 		if (hiddenSpecs.isNotEmpty()) options += "Show hidden items (${hiddenSpecs.size})" to { showHiddenItems(hiddenSpecs) }
 		options += "Reset sidebar" to {
@@ -416,6 +488,7 @@ class MainActivity : BaseActivity() {
 
 	/** Expanded, icons-only, or "expand when focused" (Settings → Appearance). */
 	private fun applySidebarMode(focusInSidebar: Boolean) {
+		if (topNav) return // the top bar always shows its labels
 		val expanded = when (prefs.sidebarMode) {
 			0 -> true
 			1 -> false
@@ -438,12 +511,15 @@ class MainActivity : BaseActivity() {
 	// Keys: LEFT from the content goes back to the sidebar, RIGHT from the sidebar into the content.
 
 	override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+		val code = event.keyCode
 		if (movingKey != null) {
-			// Moving a sidebar item: UP / DOWN move it, OK or BACK finish. Swallow everything else.
+			// Moving a navigation item: UP / DOWN (LEFT / RIGHT on the top bar) move it, OK or BACK finish.
 			if (event.action == KeyEvent.ACTION_DOWN) {
-				when (event.keyCode) {
-					KeyEvent.KEYCODE_DPAD_UP -> moveNavItem(-1)
-					KeyEvent.KEYCODE_DPAD_DOWN -> moveNavItem(1)
+				val back = if (topNav) KeyEvent.KEYCODE_DPAD_LEFT else KeyEvent.KEYCODE_DPAD_UP
+				val forward = if (topNav) KeyEvent.KEYCODE_DPAD_RIGHT else KeyEvent.KEYCODE_DPAD_DOWN
+				when (code) {
+					back -> moveNavItem(-1)
+					forward -> moveNavItem(1)
 					KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER,
 					KeyEvent.KEYCODE_BACK -> finishMove()
 				}
@@ -452,32 +528,42 @@ class MainActivity : BaseActivity() {
 		}
 		if (event.action == KeyEvent.ACTION_DOWN) {
 			val focused = currentFocus
-			val inSidebar = focused != null && isInside(focused, sidebar)
-			when (event.keyCode) {
-				KeyEvent.KEYCODE_DPAD_RIGHT -> if (inSidebar) {
-					if (page?.focusFirst() == true) return true
-				}
-				KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> if (focused != null) {
-					// UP / DOWN never jump between the sidebar and the page (e.g. past the last Settings row).
+			val inNav = focused != null && isInside(focused, sidebar)
+			// Left sidebar: RIGHT goes into the page, LEFT back to the sidebar, UP / DOWN stay put.
+			// Top bar: DOWN goes into the page, UP back to the bar, LEFT / RIGHT stay put.
+			val toPage = if (topNav) KeyEvent.KEYCODE_DPAD_DOWN else KeyEvent.KEYCODE_DPAD_RIGHT
+			val toNav = if (topNav) KeyEvent.KEYCODE_DPAD_UP else KeyEvent.KEYCODE_DPAD_LEFT
+			val cross = if (topNav) setOf(KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT)
+			else setOf(KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN)
+			when {
+				code == toPage && inNav -> if (page?.focusFirst() == true) return true
+				code == toNav && !inNav && focused != null -> {
+					// Let the focused row use the key first (e.g. the size steppers in Settings).
 					if (super.dispatchKeyEvent(event)) return true
-					val next = focused.focusSearch(if (event.keyCode == KeyEvent.KEYCODE_DPAD_UP) View.FOCUS_UP else View.FOCUS_DOWN)
-					if (next == null || isInside(next, sidebar) != inSidebar) return true
-					return false
-				}
-				KeyEvent.KEYCODE_DPAD_LEFT -> if (!inSidebar && focused != null) {
-					// Let the focused row use LEFT first (e.g. the size steppers in Settings).
-					if (super.dispatchKeyEvent(event)) return true
-					val next = focused.focusSearch(View.FOCUS_LEFT)
+					val next = focused.focusSearch(direction(code))
 					if (next == null || isInside(next, sidebar)) {
 						selectedNav?.view?.requestFocus()
 						return true
 					}
-					// Not consumed: returning false lets Android move focus left as usual.
+					return false
+				}
+				code in cross && focused != null -> {
+					// Never fall out of the page into the navigation (or the other way) sideways.
+					if (super.dispatchKeyEvent(event)) return true
+					val next = focused.focusSearch(direction(code))
+					if (next == null || isInside(next, sidebar) != inNav) return true
 					return false
 				}
 			}
 		}
 		return super.dispatchKeyEvent(event)
+	}
+
+	private fun direction(keyCode: Int): Int = when (keyCode) {
+		KeyEvent.KEYCODE_DPAD_UP -> View.FOCUS_UP
+		KeyEvent.KEYCODE_DPAD_DOWN -> View.FOCUS_DOWN
+		KeyEvent.KEYCODE_DPAD_LEFT -> View.FOCUS_LEFT
+		else -> View.FOCUS_RIGHT
 	}
 
 	private fun isInside(view: View, parent: View): Boolean {
@@ -496,7 +582,8 @@ class MainActivity : BaseActivity() {
 	}
 
 	fun setBackdrop(item: JfItem?) {
-		setBackdropUrl(item?.let { api.backdropUrl(session, it, 1280) })
+		// Glass blurs the artwork anyway, so a small image is plenty.
+		setBackdropUrl(item?.let { api.backdropUrl(session, it, if (glass) 320 else 1280) })
 	}
 
 	/** Cross-fades the page backdrop, waiting a moment so fast scrolling doesn't thrash. */
@@ -512,6 +599,16 @@ class MainActivity : BaseActivity() {
 		shownBackdrop = url
 		if (url == null) {
 			backdrop.animate().alpha(0f).setDuration(250L).start()
+			return@Runnable
+		}
+		if (glass) {
+			Images.fetch(url, transform = { app.lumen.player.util.Blur.soft(it) }) { bitmap ->
+				if (pendingBackdrop != url || bitmap == null) return@fetch
+				backdrop.animate().cancel()
+				backdrop.alpha = 0f
+				backdrop.setImageBitmap(bitmap)
+				backdrop.animate().alpha(0.95f).setDuration(450L).start()
+			}
 			return@Runnable
 		}
 		Images.load(backdrop, url, fade = false) { bitmap ->

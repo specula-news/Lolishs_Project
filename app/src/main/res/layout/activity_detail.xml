@@ -2,7 +2,7 @@
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
 	android:layout_width="match_parent"
 	android:layout_height="match_parent"
-	android:background="@color/lumen_bg">
+	android:background="?attr/lumenBg">
 
 	<ImageView
 		android:id="@+id/backdrop"
@@ -15,7 +15,7 @@
 	<View
 		android:layout_width="match_parent"
 		android:layout_height="match_parent"
-		android:background="@drawable/scrim_hero" />
+		android:background="?attr/lumenScrimHero" />
 
 	<ScrollView
 		android:id="@+id/scroll"
@@ -51,7 +51,7 @@
 				android:fontFamily="@font/fraunces_black_italic"
 				android:maxLines="2"
 				android:maxWidth="900dp"
-				android:textColor="@color/lumen_text"
+				android:textColor="?attr/lumenText"
 				android:textSize="46sp" />
 
 			<TextView
@@ -60,7 +60,7 @@
 				android:layout_height="wrap_content"
 				android:layout_marginTop="4dp"
 				android:fontFamily="@font/dmsans_bold"
-				android:textColor="@color/lumen_accent"
+				android:textColor="?attr/lumenAccent"
 				android:textSize="18sp"
 				android:visibility="gone" />
 
@@ -70,7 +70,7 @@
 				android:layout_height="wrap_content"
 				android:layout_marginTop="12dp"
 				android:fontFamily="@font/dmsans_medium"
-				android:textColor="@color/lumen_text_2"
+				android:textColor="?attr/lumenText2"
 				android:textSize="16sp" />
 
 			<TextView
@@ -78,7 +78,7 @@
 				android:layout_width="wrap_content"
 				android:layout_height="wrap_content"
 				android:layout_marginTop="4dp"
-				android:textColor="@color/lumen_text_3"
+				android:textColor="?attr/lumenText3"
 				android:textSize="15sp" />
 
 			<TextView
@@ -90,7 +90,7 @@
 				android:lineSpacingMultiplier="1.25"
 				android:maxLines="5"
 				android:maxWidth="820dp"
-				android:textColor="@color/lumen_text"
+				android:textColor="?attr/lumenText"
 				android:textSize="17sp" />
 
 			<TextView
@@ -104,7 +104,7 @@
 				android:paddingTop="6dp"
 				android:paddingEnd="12dp"
 				android:paddingBottom="6dp"
-				android:textColor="@color/lumen_green"
+				android:textColor="?attr/lumenGreen"
 				android:textSize="13sp"
 				android:visibility="gone" />
 
@@ -132,5 +132,5 @@
 		android:layout_width="56dp"
 		android:layout_height="56dp"
 		android:layout_gravity="center"
-		android:indeterminateTint="@color/lumen_accent" />
+		android:indeterminateTint="?attr/lumenAccent" />
 </FrameLayout>

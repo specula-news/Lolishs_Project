@@ -4,7 +4,7 @@
 	android:exitFadeDuration="180">
 	<item android:state_focused="true">
 		<shape android:shape="oval">
-			<solid android:color="@color/lumen_focus" />
+			<solid android:color="?attr/lumenFocus" />
 		</shape>
 	</item>
 	<item>

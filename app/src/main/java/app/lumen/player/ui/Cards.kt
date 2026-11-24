@@ -40,9 +40,12 @@ class Cards(
 		return width to height
 	}
 
-	fun create(parent: ViewGroup, style: CardStyle): View {
+	private val glass: Boolean get() = app.lumen.player.util.Themes.isGlass
+
+	/** [size] overrides the Appearance size (used for the tall cards next to the Glass hero). */
+	fun create(parent: ViewGroup, style: CardStyle, size: Pair<Int, Int>? = null): View {
 		val view = inflater.inflate(R.layout.item_card, parent, false)
-		val (width, height) = cardSize(style)
+		val (width, height) = size ?: cardSize(style)
 		val frame = view.findViewById<FrameLayout>(R.id.card_frame)
 		frame.layoutParams = frame.layoutParams.apply {
 			this.width = width
@@ -52,10 +55,66 @@ class Cards(
 		listOf(R.id.card_title, R.id.card_subtitle).forEach { id ->
 			val text = view.findViewById<TextView>(id)
 			text.layoutParams = text.layoutParams.apply { this.width = width }
-			text.visibility = if (prefs.showCardTitles) View.VISIBLE else View.GONE
+			text.visibility = if (prefs.showCardTitles && !glass) View.VISIBLE else View.GONE
 		}
+		if (glass && prefs.showCardTitles) addOverlay(frame)
 		Ui.focusScale(view, 1.07f)
 		return view
+	}
+
+	/** Glass cards: kind, title and genres written on the artwork over a soft dark fade. */
+	private fun addOverlay(frame: FrameLayout) {
+		val fade = View(context).apply { background = ContextCompat.getDrawable(context, R.drawable.scrim_bottom) }
+		frame.addView(fade, 2, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, (frame.layoutParams.height * 0.55f).toInt(), android.view.Gravity.BOTTOM))
+		val box = LinearLayout(context).apply {
+			orientation = LinearLayout.VERTICAL
+			setPadding(Ui.dp(context, 10), 0, Ui.dp(context, 10), Ui.dp(context, 14))
+			tag = "overlay"
+		}
+		box.addView(TextView(context).apply {
+			tag = "overlay_kind"
+			typeface = Ui.bold(context)
+			letterSpacing = 0.12f
+			setTextSize(TypedValue.COMPLEX_UNIT_SP, 9f)
+			setTextColor(Ui.color(context, R.attr.lumenText2))
+		})
+		box.addView(TextView(context).apply {
+			tag = "overlay_title"
+			typeface = Ui.bold(context)
+			maxLines = 2
+			ellipsize = android.text.TextUtils.TruncateAt.END
+			setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+			setTextColor(0xFFFFFFFF.toInt())
+			setShadowLayer(6f, 0f, 1f, 0x99000000.toInt())
+		})
+		box.addView(TextView(context).apply {
+			tag = "overlay_sub"
+			maxLines = 1
+			ellipsize = android.text.TextUtils.TruncateAt.END
+			setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
+			setTextColor(0xCCFFFFFF.toInt())
+			setPadding(0, Ui.dp(context, 2), 0, 0)
+		})
+		frame.addView(box, 3, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, android.view.Gravity.BOTTOM))
+	}
+
+	private fun bindOverlay(view: View, item: JfItem, style: CardStyle) {
+		val box = view.findViewWithTag<View>("overlay") ?: return
+		box.findViewWithTag<TextView>("overlay_kind").text = when (item.type) {
+			"Series" -> "SERIES"
+			"Movie" -> "FILM"
+			"Episode" -> item.episodeCode ?: "EPISODE"
+			"Season" -> "SEASON"
+			"BoxSet" -> "COLLECTION"
+			else -> item.type?.uppercase(Locale.getDefault()) ?: ""
+		}
+		box.findViewWithTag<TextView>("overlay_title").text = titleFor(item, style)
+		val genres = item.genres.take(2).joinToString("  •  ")
+		box.findViewWithTag<TextView>("overlay_sub").text = when {
+			item.type == "Episode" && style == CardStyle.THUMB -> item.seriesName.orEmpty()
+			genres.isNotBlank() -> genres
+			else -> subtitleFor(item, style)
+		}
 	}
 
 	fun bind(view: View, item: JfItem, style: CardStyle) {
@@ -73,6 +132,7 @@ class Cards(
 
 		view.findViewById<TextView>(R.id.card_title).text = titleFor(item, style)
 		view.findViewById<TextView>(R.id.card_subtitle).text = subtitleFor(item, style)
+		if (glass) bindOverlay(view, item, style)
 
 		val user = item.userData
 		when {
@@ -162,6 +222,25 @@ class Cards(
 			gravity = android.view.Gravity.BOTTOM
 			setPadding(Ui.dp(context, 8), 0, 0, Ui.dp(context, 2))
 		}
+		if (glass) {
+			// Glass: plain white title with a chevron, like "Continue Watching  ›".
+			line.gravity = android.view.Gravity.CENTER_VERTICAL
+			line.addView(TextView(context).apply {
+				text = title
+				typeface = Ui.bold(context)
+				setTextSize(TypedValue.COMPLEX_UNIT_SP, if (sizeSp >= 30f) sizeSp * 0.8f else sizeSp * 0.85f)
+				setTextColor(Ui.color(context, R.attr.lumenText))
+			})
+			if (sizeSp < 30f) {
+				line.addView(TextView(context).apply {
+					text = "  ›"
+					typeface = Ui.bold(context)
+					setTextSize(TypedValue.COMPLEX_UNIT_SP, sizeSp)
+					setTextColor(Ui.color(context, R.attr.lumenText2))
+				})
+			}
+			return line
+		}
 		val dot = View(context).apply {
 			background = ContextCompat.getDrawable(context, R.drawable.dot_green)
 		}
@@ -173,14 +252,14 @@ class Cards(
 			text = title
 			typeface = Ui.display(context)
 			setTextSize(TypedValue.COMPLEX_UNIT_SP, sizeSp)
-			setTextColor(ContextCompat.getColor(context, R.color.lumen_text))
+			setTextColor(Ui.color(context, R.attr.lumenText))
 		})
 		if (count != null && count > 0) {
 			line.addView(TextView(context).apply {
 				text = "  $count"
 				typeface = Typeface.create(Ui.display(context), Typeface.NORMAL)
 				setTextSize(TypedValue.COMPLEX_UNIT_SP, sizeSp * 0.85f)
-				setTextColor(ContextCompat.getColor(context, R.color.lumen_text_3))
+				setTextColor(Ui.color(context, R.attr.lumenText3))
 			})
 		}
 		return line

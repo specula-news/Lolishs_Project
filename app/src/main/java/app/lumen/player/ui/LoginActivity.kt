@@ -156,7 +156,7 @@ class LoginActivity : BaseActivity() {
 			gravity = Gravity.CENTER
 			typeface = Ui.display(context)
 			setTextSize(TypedValue.COMPLEX_UNIT_SP, 34f)
-			setTextColor(ContextCompat.getColor(context, R.color.lumen_accent))
+			setTextColor(Ui.color(context, R.attr.lumenAccent))
 		}
 		frame.addView(letter, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
 		if (imageUrl != null) {
@@ -180,7 +180,7 @@ class LoginActivity : BaseActivity() {
 				text = badge
 				gravity = Gravity.CENTER
 				setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
-				setTextColor(ContextCompat.getColor(context, if (badge == "Signed in") R.color.lumen_green else R.color.lumen_text_3))
+				setTextColor(Ui.color(context, if (badge == "Signed in") R.attr.lumenGreen else R.attr.lumenText3))
 			})
 		}
 		Ui.focusScale(tile, 1.08f)

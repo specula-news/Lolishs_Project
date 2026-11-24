@@ -6,21 +6,21 @@
 	<item android:state_activated="true">
 		<shape android:shape="rectangle">
 			<corners android:radius="12dp" />
-			<solid android:color="@color/lumen_accent_dim" />
-			<stroke android:width="3dp" android:color="@color/lumen_green" android:dashWidth="8dp" android:dashGap="4dp" />
+			<solid android:color="?attr/lumenAccentDim" />
+			<stroke android:width="3dp" android:color="?attr/lumenGreen" android:dashWidth="8dp" android:dashGap="4dp" />
 		</shape>
 	</item>
 	<item android:state_focused="true">
 		<shape android:shape="rectangle">
 			<corners android:radius="12dp" />
-			<solid android:color="@color/lumen_accent_dim" />
-			<stroke android:width="2dp" android:color="@color/lumen_accent" />
+			<solid android:color="?attr/lumenAccentDim" />
+			<stroke android:width="2dp" android:color="?attr/lumenAccent" />
 		</shape>
 	</item>
 	<item android:state_selected="true">
 		<shape android:shape="rectangle">
 			<corners android:radius="12dp" />
-			<solid android:color="@color/lumen_accent_dim" />
+			<solid android:color="?attr/lumenAccentDim" />
 		</shape>
 	</item>
 	<item>

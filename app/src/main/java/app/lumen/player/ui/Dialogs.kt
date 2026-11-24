@@ -25,8 +25,8 @@ object Dialogs {
 			setSingleLine()
 			inputType = if (password) InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
 			else InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
-			setTextColor(ContextCompat.getColor(context, R.color.lumen_text))
-			setHintTextColor(ContextCompat.getColor(context, R.color.lumen_text_3))
+			setTextColor(Ui.color(context, R.attr.lumenText))
+			setHintTextColor(Ui.color(context, R.attr.lumenText3))
 			background = ContextCompat.getDrawable(context, R.drawable.bg_edit)
 			val pad = Ui.dp(context, 16)
 			setPadding(pad, pad, pad, pad)

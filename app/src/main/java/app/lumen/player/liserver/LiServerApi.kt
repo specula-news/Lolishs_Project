@@ -60,10 +60,27 @@ data class LiDownload(
 	val sizeText: String,
 	val waiting: Boolean,
 	val error: String?,
+	/** Seeding rule progress: hours seeded so far and the goal (null when not seeding). */
+	val seedHours: Double? = null,
+	val seedGoal: Double? = null,
+	val isPrivate: Boolean = false,
 ) {
+	/** Download speed in MB/s for sorting ("2.31 MB/s" → 2.31, "512 KB/s" → 0.5). */
+	val speedMb: Double get() = rate(speed)
+	val uploadMb: Double get() = rate(uploadSpeed)
+
+	private fun rate(text: String): Double {
+		val m = Regex("([\\d.]+)\\s*(B|KB|MB|GB)", RegexOption.IGNORE_CASE).find(text) ?: return 0.0
+		val value = m.groupValues[1].toDoubleOrNull() ?: return 0.0
+		return when (m.groupValues[2].uppercase()) { "B" -> value / 1_048_576; "KB" -> value / 1024; "GB" -> value * 1024; else -> value }
+	}
+
 	val isSeeding: Boolean get() = state.contains("Seeding", ignoreCase = true) || progress >= 100.0
 	val isPaused: Boolean get() = state.contains("Paused", ignoreCase = true) || state.contains("Stopped", ignoreCase = true)
 }
+
+/** A finished download from the History list. */
+data class LiHistory(val name: String, val path: String, val date: String, val timestamp: Long)
 
 /** "Airing today" episodes and trending movies from the start page. */
 data class LiDiscover(
@@ -151,8 +168,29 @@ class LiServerApi(private val prefs: Prefs) {
 				sizeText = o.optString("total_size_str").ifBlank { o.optString("size_str") },
 				waiting = o.optBoolean("waiting", false),
 				error = o.optString("error").takeIf { it.isNotBlank() && it != "null" },
+				seedHours = o.optJSONObject("seed")?.optDouble("h")?.takeIf { !it.isNaN() },
+				seedGoal = o.optJSONObject("seed")?.optDouble("goal")?.takeIf { !it.isNaN() },
+				isPrivate = o.optBoolean("is_private", false) || o.optBoolean("private", false),
 			)
 		}
+	}
+
+	suspend fun history(): List<LiHistory> {
+		val array = call("GET", "/api/history") as? JSONArray ?: return emptyList()
+		return (0 until array.length()).mapNotNull { i ->
+			val o = array.optJSONObject(i) ?: return@mapNotNull null
+			LiHistory(o.optString("name"), o.optString("path"), o.optString("date"), o.optLong("timestamp", 0L))
+		}.sortedByDescending { it.timestamp }
+	}
+
+	/** Seed [hours] longer than the seeding rule says. */
+	suspend fun seedLonger(hash: String, hours: Int) {
+		call("POST", "/api/seeding/extend", body = JSONObject().put("hash", hash).put("hours", hours))
+	}
+
+	/** Stop seeding now; the files move into the library. */
+	suspend fun stopSeeding(hash: String) {
+		call("POST", "/api/seeding/stop", body = JSONObject().put("hash", hash))
 	}
 
 	/** [action]: pause, resume, force or delete (delete also removes the files). */

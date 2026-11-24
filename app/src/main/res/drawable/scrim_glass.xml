@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Glass: the blurred artwork stays visible; only a soft vignette so text keeps its contrast. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+	<item>
+		<shape android:shape="rectangle">
+			<gradient android:angle="0" android:startColor="#99000000" android:centerColor="#33000000" android:endColor="#1A000000" />
+		</shape>
+	</item>
+	<item>
+		<shape android:shape="rectangle">
+			<gradient android:angle="90" android:startColor="#B3000000" android:centerColor="#1A000000" android:endColor="#33000000" />
+		</shape>
+	</item>
+</layer-list>

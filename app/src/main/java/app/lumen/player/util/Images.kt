@@ -79,6 +79,20 @@ object Images {
 		}
 	}
 
+	/**
+	 * Loads [url] without a view, optionally transforming it on the loader thread (e.g. [Blur.soft]),
+	 * and hands the result to [onLoaded] on the main thread.
+	 */
+	fun fetch(url: String, transform: ((Bitmap) -> Bitmap)? = null, onLoaded: (Bitmap?) -> Unit) {
+		executor.execute {
+			val bitmap = runCatching {
+				val raw = memory.get(url) ?: (fromDisk(url) ?: download(url))?.also { memory.put(url, it) }
+				if (raw != null && transform != null) transform(raw) else raw
+			}.onFailure { Log.d("Images", "Failed $url: ${it.message}") }.getOrNull()
+			main.post { onLoaded(bitmap) }
+		}
+	}
+
 	private fun fileFor(url: String): File {
 		val digest = MessageDigest.getInstance("SHA-1").digest(url.toByteArray())
 		return File(cacheDir, digest.joinToString("") { "%02x".format(it) })

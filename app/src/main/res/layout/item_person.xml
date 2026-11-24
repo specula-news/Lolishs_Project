@@ -44,6 +44,6 @@
 		android:ellipsize="end"
 		android:gravity="center"
 		android:maxLines="1"
-		android:textColor="@color/lumen_text_2"
+		android:textColor="?attr/lumenText2"
 		android:textSize="12sp" />
 </LinearLayout>
