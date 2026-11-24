@@ -173,7 +173,7 @@ class SettingsPage(host: MainActivity, private val scrollToAccount: Boolean = fa
 			target.post { target.requestFocus() }
 		}
 		b.toggle("Clock", "Top right corner of the menus (not while watching)", isOn = { prefs.showClock }) { appearance { prefs.showClock = it } }
-		b.stepper("Previews", "Focused title plays after a few seconds", value = { PREVIEWS[prefs.previewMode.coerceIn(0, 2)] }) { d, _ ->
+		b.stepper("Previews", "A focused title plays after 3 seconds; \"then play\" carries on in the player after 20", value = { PREVIEWS[prefs.previewMode.coerceIn(0, 2)] }) { d, _ ->
 			prefs.previewMode = (prefs.previewMode + d + 3) % 3
 		}
 		b.toggle("Preview sound", isOn = { prefs.previewSound }) { prefs.previewSound = it }
@@ -342,7 +342,7 @@ class SettingsPage(host: MainActivity, private val scrollToAccount: Boolean = fa
 		/** Remembered while the app runs, so Settings reopens where you were (e.g. after "Apply"). */
 		var current = Section.USERS
 		val SIDEBAR_SIZES = listOf("Compact", "Normal", "Large")
-		val PREVIEWS = listOf("Off", "Small window", "Small, then full screen")
+		val PREVIEWS = listOf("Off", "Preview only", "Preview, then play")
 		val SIZES4 = listOf("Small", "Medium", "Large", "Extra large")
 		val SIZES3 = listOf("Small", "Medium", "Large")
 		val TEXT_SCALES = listOf(85, 90, 100, 110, 120, 130)

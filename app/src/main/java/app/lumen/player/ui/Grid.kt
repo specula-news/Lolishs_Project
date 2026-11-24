@@ -156,14 +156,26 @@ class TvScrollView @JvmOverloads constructor(
 		return false // the top: the app may move up to the top bar
 	}
 
-	/** Scrolls so [view] is comfortably on screen: near the top when moving down the page. */
+	/**
+	 * Scrolls so [view] is comfortably on screen: anything that fits on the first screen (like the
+	 * Home banner) shows from the very top, further down the focused row sits near the top.
+	 */
 	fun reveal(view: View) {
 		val rect = Rect()
 		view.getDrawingRect(rect)
 		offsetDescendantRectToMyCoords(view, rect)
 		val visible = height - paddingTop - paddingBottom
-		val target = if (rect.top < visible * 0.22f) 0 else rect.top - (visible * 0.22f).toInt()
+		val target = if (rect.bottom <= visible) 0 else rect.top - (visible * 0.22f).toInt()
 		smoothScrollTo(0, target.coerceIn(0, maxScroll()))
+	}
+
+	/** Scrolls so [view]'s top sits at [fraction] of the screen height (e.g. below a preview window). */
+	fun revealAt(view: View, fraction: Float) {
+		val rect = Rect()
+		view.getDrawingRect(rect)
+		offsetDescendantRectToMyCoords(view, rect)
+		val visible = height - paddingTop - paddingBottom
+		smoothScrollTo(0, (rect.top - (visible * fraction).toInt()).coerceIn(0, maxScroll()))
 	}
 
 	private fun maxScroll(): Int = maxOf(0, (getChildAt(0)?.height ?: 0) - (height - paddingTop - paddingBottom))

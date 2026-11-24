@@ -68,6 +68,9 @@ class MainActivity : BaseActivity() {
 	/** Last focused view inside the page, to put focus back if a refresh drops it. */
 	private var lastContentFocus: java.lang.ref.WeakReference<View>? = null
 
+	/** Where pages are shown (the preview window lines up with it). */
+	val contentArea: View get() = content
+
 	/** True when the buttons are on top (pages use this for LEFT / RIGHT at the edges). */
 	val topNavigation: Boolean get() = topNav
 	/** The clock floats in the top right corner (menu on the left); pages keep that corner free. */
@@ -147,10 +150,19 @@ class MainActivity : BaseActivity() {
 
 		onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
 			override fun handleOnBackPressed() {
-				if (sidebar.findFocus() == null) {
-					selectedNav?.view?.requestFocus()
-				} else {
-					Dialogs.confirm(this@MainActivity, "Exit Lolish's Project?", "You can open it again from the home screen.", "Exit") { finish() }
+				// BACK: other pages → Home; on Home → up to the menu; in the menu → "Exit?".
+				val home = navItems.firstOrNull { it.key == "home" }
+				when {
+					home != null && selectedNav !== home -> {
+						select(home, focusContent = false)
+						home.view.requestFocus()
+						applySidebarMode(focusInSidebar = true)
+					}
+					sidebar.findFocus() == null -> {
+						(page?.view as? ScrollView)?.smoothScrollTo(0, 0)
+						selectedNav?.view?.requestFocus()
+					}
+					else -> Dialogs.confirm(this@MainActivity, "Exit Lolish's Project?", "You can open it again from the home screen.", "Exit") { finish() }
 				}
 			}
 		})

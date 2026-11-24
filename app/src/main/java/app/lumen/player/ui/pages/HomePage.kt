@@ -30,6 +30,10 @@ import kotlinx.coroutines.launch
 /** Featured item + Continue watching, Next up, Latest per library, Upcoming and Favorites rows. */
 class HomePage(host: MainActivity) : Page(host) {
 
+	private companion object {
+		const val TURN_MS = 10_000L
+	}
+
 	private data class RowData(val key: String, val title: String, val style: CardStyle, val items: List<JfItem>)
 
 	private val scroll = app.lumen.player.ui.TvScrollView(host).apply {
@@ -75,6 +79,10 @@ class HomePage(host: MainActivity) : Page(host) {
 
 	override fun onShow() {
 		load(initial = true)
+	}
+
+	override fun onHide() {
+		feature?.card?.removeCallbacks(turn)
 	}
 
 	override fun onReturn() {
@@ -181,7 +189,7 @@ class HomePage(host: MainActivity) : Page(host) {
 					if (focused) {
 						host.setBackdrop(item)
 						// Wide cards play a preview in place of the artwork after a moment.
-						if (wide) host.preview.focus(item, frame, 2)
+						if (wide) host.preview.focus(item, frame, 2, inline = false)
 					} else if (wide) host.preview.leave(frame)
 				}
 				strip.addView(card)
@@ -328,11 +336,13 @@ class HomePage(host: MainActivity) : Page(host) {
 				val item = currentFeatured
 				if (focused && item != null) {
 					host.setBackdrop(item)
-					host.preview.focus(item, card, 1)
+					host.preview.focus(item, card, 1, inline = true)
 				} else {
 					// Moving between Play and More info keeps the preview; leaving the banner stops it.
 					card.post { if (!card.hasFocus()) host.preview.leave(card) }
 				}
+				// The whole banner lights up while you're on it.
+				card.post { markBanner(card.hasFocus()) }
 			}
 		}
 		card.addView(actions, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -362,6 +372,27 @@ class HomePage(host: MainActivity) : Page(host) {
 				android.view.Gravity.BOTTOM or android.view.Gravity.CENTER_HORIZONTAL).apply { bottomMargin = Ui.dp(host, 12) })
 		}
 
+		// ‹ › on the edges while the banner has focus: LEFT on Play / RIGHT on More info switch titles.
+		if (featured.size > 1) {
+			listOf("‹" to android.view.Gravity.START, "›" to android.view.Gravity.END).forEach { pair ->
+				val mark = pair.first
+				val side = pair.second
+				card.addView(TextView(host).apply {
+					this.text = mark
+					tag = "banner_arrow"
+					typeface = Ui.bold(host)
+					gravity = android.view.Gravity.CENTER
+					setTextSize(TypedValue.COMPLEX_UNIT_SP, 30f)
+					setTextColor(0xFFFFFFFF.toInt())
+					background = ContextCompat.getDrawable(host, R.drawable.bg_hud)
+					alpha = 0f
+				}, FrameLayout.LayoutParams(Ui.dp(host, 40), Ui.dp(host, 56), side or android.view.Gravity.CENTER_VERTICAL).apply {
+					setMargins(Ui.dp(host, 8), 0, Ui.dp(host, 8), 0)
+				})
+			}
+		}
+		card.foreground = ContextCompat.getDrawable(host, R.drawable.bg_feature_ring)
+
 		column.addView(card, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, height).apply {
 			marginEnd = Ui.dp(host, 44)
 			bottomMargin = Ui.dp(host, 4)
@@ -382,14 +413,8 @@ class HomePage(host: MainActivity) : Page(host) {
 		val resume = item.userData?.hasResume == true
 
 		crossfade(v.art, host.api.backdropUrl(host.session, item, 1280) ?: host.api.thumbUrl(host.session, item, 1280))
-		v.kind.text = when {
-			resume -> "CONTINUE WATCHING"
-			item.type == "Series" -> "SERIES"
-			item.type == "Movie" -> "FILM"
-			item.type == "Episode" -> "EPISODE"
-			else -> item.type.uppercase(java.util.Locale.getDefault())
-		}
-		val name = if (item.type == "Episode") item.seriesName ?: item.name else item.name
+		v.kind.text = app.lumen.player.ui.FeatureText.kind(item)
+		val name = app.lumen.player.ui.FeatureText.title(item)
 		val logo = host.api.logoUrl(host.session, item, 700)
 		if (logo != null) {
 			v.logo.visibility = View.VISIBLE
@@ -403,24 +428,7 @@ class HomePage(host: MainActivity) : Page(host) {
 			v.title.setTextSize(TypedValue.COMPLEX_UNIT_SP, if (name.length > 20) 34f else 44f)
 		}
 
-		// "Series  •  Drama  •  2024  •  TV-14  •  ★ 8.1"
-		val facts = android.text.SpannableStringBuilder()
-		fun add(part: String?) {
-			if (part.isNullOrBlank()) return
-			if (facts.isNotEmpty()) facts.append("  •  ")
-			facts.append(part)
-		}
-		add(item.episodeCode?.let { "$it · ${item.name}" } ?: when (item.type) { "Series" -> "Series"; "Movie" -> "Film"; else -> null })
-		item.genres.take(2).forEach { add(it) }
-		add(item.year?.toString())
-		add(item.officialRating)
-		add(item.childCount.takeIf { it > 0 && item.type == "Series" }?.let { if (it == 1) "1 season" else "$it seasons" })
-		item.communityRating?.let {
-			if (facts.isNotEmpty()) facts.append("  •  ")
-			val start = facts.length
-			facts.append(String.format(java.util.Locale.US, "★ %.1f", it))
-			facts.setSpan(android.text.style.ForegroundColorSpan(Ui.color(host, R.attr.lumenGreen)), start, facts.length, 0)
-		}
+		val facts = app.lumen.player.ui.FeatureText.facts(host, item)
 		v.facts.text = facts
 		v.overview.text = item.overview.orEmpty()
 		v.overview.visibility = if (item.overview.isNullOrBlank()) View.GONE else View.VISIBLE
@@ -442,8 +450,33 @@ class HomePage(host: MainActivity) : Page(host) {
 		}
 		if (v.card.hasFocus()) {
 			host.setBackdrop(item)
-			host.preview.focus(item, v.card, 1)
+			host.preview.focus(item, v.card, 1, inline = true)
 		}
+		scheduleTurn()
+	}
+
+	/** Ring around the banner and the ‹ › hints while focus is on it. */
+	private fun markBanner(focused: Boolean) {
+		val v = feature ?: return
+		v.card.isSelected = focused
+		for (i in 0 until v.card.childCount) {
+			val child = v.card.getChildAt(i)
+			if (child.tag == "banner_arrow") child.animate().alpha(if (focused) 0.85f else 0f).setDuration(180L).start()
+		}
+	}
+
+	/** The banner moves on to the next title every 10 seconds (not while a preview is on). */
+	private val turn = Runnable {
+		val v = feature
+		if (v != null && featured.size > 1 && v.card.isShown && host.hasWindowFocus() && !host.preview.isBusy(v.card)) {
+			showFeature((featuredIndex + 1) % featured.size)
+		} else scheduleTurn()
+	}
+
+	private fun scheduleTurn() {
+		val v = feature ?: return
+		v.card.removeCallbacks(turn)
+		if (featured.size > 1) v.card.postDelayed(turn, TURN_MS)
 	}
 
 	/** Shortens the overview until title, facts and overview fit above the buttons. */

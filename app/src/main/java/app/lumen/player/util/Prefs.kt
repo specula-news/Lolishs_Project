@@ -9,6 +9,11 @@ import java.util.UUID
 class Prefs(context: Context) {
 	private val sp = context.applicationContext.getSharedPreferences("lumen", Context.MODE_PRIVATE)
 
+	init {
+		// 3.0: the Li'Server login used to be shared by every user. Remove that copy for good.
+		if (SHARED_LISERVER_KEYS.any { sp.contains(it) }) sp.edit { SHARED_LISERVER_KEYS.forEach { remove(it) } }
+	}
+
 	enum class EngineMode(val label: String) {
 		AUTO("Auto (ExoPlayer, VLC fallback)"),
 		EXO("ExoPlayer only"),
@@ -335,7 +340,15 @@ class Prefs(context: Context) {
 		activate(account)
 	}
 
-	fun activate(account: Account) = sp.edit {
+	fun activate(account: Account) {
+		// Another user: the Li'Server website must not stay signed in as the previous one.
+		if (str("user_id") != account.userId) {
+			runCatching { android.webkit.CookieManager.getInstance().removeAllCookies(null) }
+		}
+		activateKeys(account)
+	}
+
+	private fun activateKeys(account: Account) = sp.edit {
 		putString("server_url", account.serverUrl)
 		putString("server_name", account.serverName)
 		putString("access_token", account.token)
@@ -394,30 +407,33 @@ class Prefs(context: Context) {
 		get() = str("liserver_url") ?: DEFAULT_LISERVER
 		set(value) = putStr("liserver_url", value)
 
+	// The Li'Server login belongs to the Jellyfin user that's signed in: every user types their own
+	// once, and nobody else on the TV sees it (no shared fallback).
+
 	var liServerUser: String?
-		get() = str("liserver_user")
-		set(value) = putStr("liserver_user", value)
+		get() = str(profileKey("liserver_user"))
+		set(value) = putStr(profileKey("liserver_user"), value)
 
 	/** Encrypted with the Android Keystore (see [SecureStore]). */
 	var liServerPasswordEncrypted: String?
-		get() = str("liserver_pass")
-		set(value) = putStr("liserver_pass", value)
+		get() = str(profileKey("liserver_pass"))
+		set(value) = putStr(profileKey("liserver_pass"), value)
 
 	var liServerAutoLogin: Boolean
-		get() = bool("liserver_auto_login", true)
-		set(value) = putBool("liserver_auto_login", value)
+		get() = bool(profileKey("liserver_auto_login"), true)
+		set(value) = putBool(profileKey("liserver_auto_login"), value)
 
 	/** Session cookies of the native Li'Server screen (kept across restarts and app updates). */
 	var liServerCookies: Map<String, String>
 		get() = runCatching {
-			val o = JSONObject(str("liserver_cookies") ?: "{}")
+			val o = JSONObject(str(profileKey("liserver_cookies")) ?: "{}")
 			o.keys().asSequence().associateWith { o.optString(it) }
 		}.getOrDefault(emptyMap())
-		set(value) = putStr("liserver_cookies", JSONObject(value as Map<*, *>).toString())
+		set(value) = putStr(profileKey("liserver_cookies"), JSONObject(value as Map<*, *>).toString())
 
 	var liServerCsrf: String?
-		get() = str("liserver_csrf")
-		set(value) = putStr("liserver_csrf", value)
+		get() = str(profileKey("liserver_csrf"))
+		set(value) = putStr(profileKey("liserver_csrf"), value)
 
 	/** Open the Li'Server website instead of the TV screen. */
 	var liServerUseWebsite: Boolean
@@ -481,6 +497,7 @@ class Prefs(context: Context) {
 		runCatching { JSONObject(sp.getString(key, null) ?: "{}") }.getOrDefault(JSONObject())
 
 	companion object {
+		private val SHARED_LISERVER_KEYS = listOf("liserver_user", "liserver_pass", "liserver_cookies", "liserver_csrf", "liserver_auto_login")
 		const val DEFAULT_SERVER = "http://lolish.no-ip.com:8096"
 		const val DEFAULT_LISERVER = "https://lolish.no-ip.com:5000/"
 	}
