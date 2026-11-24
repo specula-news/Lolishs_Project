@@ -105,15 +105,17 @@ class HomePage(host: MainActivity) : Page(host) {
 		val latest = libraries.map { library ->
 			async {
 				val items = if (prefs.rowLatest) runCatching { api.latest(session, library.id) }.getOrDefault(emptyList()) else emptyList()
-				RowData("latest:${library.id}", "Latest ${library.name}", CardStyle.POSTER, items)
+				RowData("latest:${library.id}", "Latest ${library.name}", if (prefs.homeWideCards) CardStyle.THUMB else CardStyle.POSTER, items)
 			}
 		}
+		val wide = prefs.homeWideCards
+		fun style(default: CardStyle) = if (wide) CardStyle.THUMB else default
 		buildList {
 			add(RowData("resume", "Continue watching", CardStyle.THUMB, resume.await()))
 			add(RowData("nextup", "Next up", CardStyle.THUMB, nextUp.await()))
 			latest.forEach { add(it.await()) }
 			add(RowData("upcoming", "Upcoming", CardStyle.THUMB, upcoming.await()))
-			add(RowData("favorites", "Favorites", CardStyle.POSTER, favorites.await()))
+			add(RowData("favorites", "Favorites", style(CardStyle.POSTER), favorites.await()))
 		}.filter { it.items.isNotEmpty() }
 	}
 
@@ -127,20 +129,9 @@ class HomePage(host: MainActivity) : Page(host) {
 		rowStrips.clear()
 		heroButton = null
 
-		val featured = data.firstOrNull { it.key == "resume" }?.items?.firstOrNull()
-			?: data.firstOrNull { it.key.startsWith("latest") }?.items?.firstOrNull { it.backdropTags.isNotEmpty() }
+		val featured = pickFeatured(data)
 		hero = featured
-		// Glass: the featured item is a big card at the start of the first row (reference design).
-		val glassHero = app.lumen.player.util.Themes.isGlass && host.prefs.showHero && featured != null
-		var skipKey: String? = null
-		if (glassHero && featured != null) {
-			val resumeRow = data.firstOrNull { it.key == "resume" }
-			val rest = if (resumeRow != null && resumeRow.items.firstOrNull()?.id == featured.id) {
-				skipKey = "resume"
-				resumeRow.items.drop(1)
-			} else emptyList()
-			buildGlassHero(featured, rest, if (skipKey != null) "Continue Watching" else "New in your library")
-		} else if (host.prefs.showHero && featured != null) buildHero(featured) else buildTitle()
+		if (host.prefs.showHero && featured != null) buildFeature(featured) else buildTitle()
 
 		if (data.isEmpty()) {
 			column.addView(TextView(host).apply {
@@ -152,7 +143,7 @@ class HomePage(host: MainActivity) : Page(host) {
 		}
 
 		var refocus: View? = null
-		data.filter { it.key != skipKey }.forEachIndexed { rowIndex, row ->
+		data.forEachIndexed { rowIndex, row ->
 			val (rowView, strip) = host.cards.row(row.title, row.items.size)
 			row.items.forEach { item ->
 				val card = host.cards.create(strip, row.style)
@@ -198,190 +189,185 @@ class HomePage(host: MainActivity) : Page(host) {
 		})
 	}
 
-	private fun buildHero(item: JfItem) {
-		val box = LinearLayout(host).apply {
-			orientation = LinearLayout.VERTICAL
-			setPadding(Ui.dp(host, 8), Ui.dp(host, 40), Ui.dp(host, 48), Ui.dp(host, 16))
+	/**
+	 * Today's featured title: one of the newest unwatched movies / shows with artwork (changes daily),
+	 * otherwise what you're in the middle of.
+	 */
+	private fun pickFeatured(data: List<RowData>): JfItem? {
+		val fresh = data.filter { it.key.startsWith("latest") }.flatMap { it.items }
+			.filter { it.backdropTags.isNotEmpty() && it.userData?.played != true }
+			.distinctBy { it.id }.take(10)
+		if (fresh.isNotEmpty()) {
+			val day = java.util.Calendar.getInstance().get(java.util.Calendar.DAY_OF_YEAR)
+			return fresh[day % fresh.size]
 		}
-		val resume = item.userData?.hasResume == true
-		box.addView(TextView(host).apply {
-			text = if (resume) "CONTINUE WATCHING" else "NEW IN YOUR LIBRARY"
-			typeface = Ui.bold(host)
-			letterSpacing = 0.14f
-			setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
-			setTextColor(Ui.color(host, R.attr.lumenAccent))
-		})
-		box.addView(TextView(host).apply {
-			text = if (item.type == "Episode") item.seriesName ?: item.name else item.name
-			typeface = Ui.display(host)
-			maxLines = 2
-			setTextSize(TypedValue.COMPLEX_UNIT_SP, 46f)
-			setTextColor(Ui.color(host, R.attr.lumenText))
-			setPadding(0, Ui.dp(host, 6), 0, Ui.dp(host, 4))
-		})
-		val meta = listOfNotNull(
-			item.episodeCode?.let { "$it  ·  ${item.name}" },
-			item.year?.toString(),
-			item.officialRating,
-			item.communityRating?.let { String.format(java.util.Locale.US, "★ %.1f", it) },
-			item.runtimeMs.takeIf { it > 0 }?.let { Formatters.time(it) },
-		).joinToString("   ·   ")
-		box.addView(TextView(host).apply {
-			text = meta
-			setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
-			setTextColor(Ui.color(host, R.attr.lumenText2))
-		})
-		item.overview?.let { overview ->
-			box.addView(TextView(host).apply {
-				text = overview
-				maxLines = 3
-				ellipsize = android.text.TextUtils.TruncateAt.END
-				setLineSpacing(0f, 1.25f)
-				setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
-				setTextColor(Ui.color(host, R.attr.lumenText))
-				setPadding(0, Ui.dp(host, 12), 0, 0)
-			}, LinearLayout.LayoutParams(Ui.dp(host, 720), ViewGroup.LayoutParams.WRAP_CONTENT))
-		}
-		box.clipChildren = false
-		box.clipToPadding = false
-		val actions = LinearLayout(host).apply {
-			orientation = LinearLayout.HORIZONTAL
-			setPadding(0, Ui.dp(host, 22), 0, 0)
-			clipChildren = false
-			clipToPadding = false
-		}
-		val play = Pills.create(actions, if (resume) "Resume ${Formatters.time(item.userData?.positionMs ?: 0)}" else "Play", R.drawable.ic_play)
-		play.setOnClickListener { PlayerActivity.play(host, item.id, startMs = -1L) }
-		val details = Pills.create(actions, "Details", R.drawable.ic_info)
-		details.setOnClickListener { DetailActivity.start(host, item.id) }
-		listOf(play, details).forEach { pill ->
-			Ui.focusScale(pill, 1.05f) { focused -> if (focused) host.setBackdrop(item) }
-		}
-		box.addView(actions)
-		column.addView(box)
-		heroButton = play
+		return data.firstOrNull { it.key == "resume" }?.items?.firstOrNull()
+			?: data.flatMap { it.items }.firstOrNull { it.backdropTags.isNotEmpty() || it.parentBackdropTags.isNotEmpty() }
 	}
 
-	/** Glass hero: one wide card with artwork, title, facts and Play / More info, then tall cards. */
-	private fun buildGlassHero(item: JfItem, more: List<JfItem>, title: String) {
-		val (rowView, strip) = host.cards.row(title, null)
-		val height = Ui.dp(host, 320)
-		val width = Ui.dp(host, 560)
+	/** Big streaming-app style banner: artwork, title (or logo), facts, overview, Play and More info. */
+	private fun buildFeature(item: JfItem) {
+		val metrics = host.resources.displayMetrics
+		val screenDp = metrics.heightPixels / metrics.density
+		val height = Ui.dp(host, (screenDp * 0.56f).toInt().coerceIn(250, 440))
 		val card = FrameLayout(host).apply {
-			background = ContextCompat.getDrawable(host, R.drawable.bg_card_image)
+			background = ContextCompat.getDrawable(host, R.drawable.bg_feature)
 			clipToOutline = true
 		}
 		val art = ImageView(host).apply { scaleType = ImageView.ScaleType.CENTER_CROP }
 		card.addView(art, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-		Images.load(art, host.api.backdropUrl(host.session, item, 1280))
-		card.addView(View(host).apply { background = ContextCompat.getDrawable(host, R.drawable.scrim_hero_card) },
+		Images.load(art, host.api.backdropUrl(host.session, item, 1280) ?: host.api.thumbUrl(host.session, item, 1280))
+		card.addView(View(host).apply { background = ContextCompat.getDrawable(host, R.drawable.scrim_feature) },
 			FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+
 		val box = LinearLayout(host).apply {
 			orientation = LinearLayout.VERTICAL
 			gravity = android.view.Gravity.BOTTOM
-			setPadding(Ui.dp(host, 26), Ui.dp(host, 22), Ui.dp(host, 26), Ui.dp(host, 22))
+			setPadding(Ui.dp(host, 40), Ui.dp(host, 26), Ui.dp(host, 24), Ui.dp(host, 30))
+			clipChildren = false
+			clipToPadding = false
 		}
+		val resume = item.userData?.hasResume == true
 		box.addView(TextView(host).apply {
-			text = when (item.type) { "Series", "Episode" -> "SERIES"; "Movie" -> "FILM"; else -> item.type?.uppercase().orEmpty() }
+			text = when {
+				resume -> "CONTINUE WATCHING"
+				item.type == "Series" -> "SERIES"
+				item.type == "Movie" -> "FILM"
+				item.type == "Episode" -> "EPISODE"
+				else -> item.type?.uppercase(java.util.Locale.getDefault()).orEmpty()
+			}
 			typeface = Ui.bold(host)
-			letterSpacing = 0.14f
-			setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
-			setTextColor(0xFFFFFFFF.toInt())
+			letterSpacing = 0.2f
+			setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+			setTextColor(Ui.color(host, R.attr.lumenAccent))
 		})
 		val name = if (item.type == "Episode") item.seriesName ?: item.name else item.name
-		val logo = host.api.logoUrl(host.session, item, 600)
+		val logo = host.api.logoUrl(host.session, item, 700)
 		if (logo != null) {
 			val logoView = ImageView(host).apply {
 				adjustViewBounds = true
 				scaleType = ImageView.ScaleType.FIT_START
 				contentDescription = name
 			}
-			box.addView(logoView, LinearLayout.LayoutParams(Ui.dp(host, 260), Ui.dp(host, 78)).apply { topMargin = Ui.dp(host, 6) })
+			box.addView(logoView, LinearLayout.LayoutParams(Ui.dp(host, 340), Ui.dp(host, 100)).apply { topMargin = Ui.dp(host, 8) })
 			Images.load(logoView, logo)
 		} else {
 			box.addView(TextView(host).apply {
 				text = name
-				typeface = Ui.bold(host)
+				typeface = Ui.display(host)
 				maxLines = 2
-				setTextSize(TypedValue.COMPLEX_UNIT_SP, 32f)
+				ellipsize = android.text.TextUtils.TruncateAt.END
+				setTextSize(TypedValue.COMPLEX_UNIT_SP, if (name.length > 20) 36f else 46f)
 				setTextColor(0xFFFFFFFF.toInt())
+				setLineSpacing(0f, 0.95f)
 				setPadding(0, Ui.dp(host, 4), 0, 0)
-			}, LinearLayout.LayoutParams(Ui.dp(host, 340), ViewGroup.LayoutParams.WRAP_CONTENT))
+			}, LinearLayout.LayoutParams(Ui.dp(host, 520), ViewGroup.LayoutParams.WRAP_CONTENT))
 		}
+
+		// "Series  •  Drama  •  2024  •  TV-14  •  ★ 8.1"
 		val facts = android.text.SpannableStringBuilder()
+		fun add(part: String?) {
+			if (part.isNullOrBlank()) return
+			if (facts.isNotEmpty()) facts.append("  •  ")
+			facts.append(part)
+		}
+		add(item.episodeCode?.let { "$it · ${item.name}" } ?: when (item.type) { "Series" -> "Series"; "Movie" -> "Film"; else -> null })
+		item.genres.take(2).forEach { add(it) }
+		add(item.year?.toString())
+		add(item.officialRating)
+		add(item.childCount.takeIf { it > 0 && item.type == "Series" }?.let { if (it == 1) "1 season" else "$it seasons" })
 		item.communityRating?.let {
+			if (facts.isNotEmpty()) facts.append("  •  ")
 			val start = facts.length
 			facts.append(String.format(java.util.Locale.US, "★ %.1f", it))
 			facts.setSpan(android.text.style.ForegroundColorSpan(Ui.color(host, R.attr.lumenGreen)), start, facts.length, 0)
-			facts.setSpan(android.text.style.StyleSpan(android.graphics.Typeface.BOLD), start, facts.length, 0)
 		}
-		listOfNotNull(
-			item.episodeCode?.let { "$it · ${item.name}" },
-			item.year?.toString(),
-			item.childCount.takeIf { it > 0 && item.type == "Series" }?.let { "$it Seasons" },
-			item.officialRating,
-			item.runtimeMs.takeIf { it > 0 && item.type != "Series" }?.let { Formatters.time(it) },
-		).forEach { if (facts.isNotEmpty()) facts.append("    "); facts.append(it) }
 		box.addView(TextView(host).apply {
 			text = facts
+			typeface = Ui.bold(host)
 			maxLines = 1
-			setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
-			setTextColor(0xE6FFFFFF.toInt())
-			setPadding(0, Ui.dp(host, 10), 0, 0)
+			setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+			setTextColor(0xF2FFFFFF.toInt())
+			setPadding(0, Ui.dp(host, 12), 0, 0)
 		})
-		if (item.genres.isNotEmpty()) {
-			box.addView(TextView(host).apply {
-				text = item.genres.take(3).joinToString("  •  ")
-				setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
-				setTextColor(0xB3FFFFFF.toInt())
-				setPadding(0, Ui.dp(host, 4), 0, 0)
-			})
-		}
 		item.overview?.let { overview ->
 			box.addView(TextView(host).apply {
 				text = overview
 				maxLines = 3
 				ellipsize = android.text.TextUtils.TruncateAt.END
-				setLineSpacing(0f, 1.2f)
-				setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
-				setTextColor(0xCCFFFFFF.toInt())
-				setPadding(0, Ui.dp(host, 8), 0, 0)
-			}, LinearLayout.LayoutParams(Ui.dp(host, 330), ViewGroup.LayoutParams.WRAP_CONTENT))
+				setLineSpacing(0f, 1.22f)
+				setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+				setTextColor(0xE6FFFFFF.toInt())
+				setPadding(0, Ui.dp(host, 10), 0, 0)
+			}, LinearLayout.LayoutParams(Ui.dp(host, 450), ViewGroup.LayoutParams.WRAP_CONTENT))
 		}
+
 		val actions = LinearLayout(host).apply {
 			orientation = LinearLayout.HORIZONTAL
-			setPadding(0, Ui.dp(host, 14), 0, 0)
+			setPadding(0, Ui.dp(host, 18), 0, 0)
+			clipChildren = false
+			clipToPadding = false
 		}
-		val resume = item.userData?.hasResume == true
 		val play = Pills.create(actions, if (resume) "Resume" else "Play", R.drawable.ic_play)
-		play.setOnClickListener { PlayerActivity.play(host, item.id, startMs = -1L) }
-		val info = Pills.create(actions, "More Info", R.drawable.ic_info)
-		info.setOnClickListener { DetailActivity.start(host, item.id) }
-		listOf(play, info).forEach { pill ->
-			pill.layoutParams = (pill.layoutParams as LinearLayout.LayoutParams).apply { this.height = Ui.dp(host, 42) }
-			pill.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
-			Ui.focusScale(pill, 1.05f) { focused -> if (focused) host.setBackdrop(item) }
+		play.background = ContextCompat.getDrawable(host, R.drawable.bg_pill_primary)
+		ContextCompat.getColorStateList(host, R.color.pill_primary_text)?.let {
+			play.setTextColor(it)
+			play.compoundDrawableTintList = it
 		}
+		play.setOnClickListener { playFeatured(item) }
+		val info = Pills.create(actions, "More info", R.drawable.ic_info)
+		info.setOnClickListener { DetailActivity.start(host, item.id) }
+		listOf(play, info).forEach { pill -> Ui.focusScale(pill, 1.06f) { focused -> if (focused) host.setBackdrop(item) } }
 		box.addView(actions)
 		card.addView(box, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-		strip.addView(card, LinearLayout.LayoutParams(width, height).apply { setMargins(Ui.dp(host, 7), Ui.dp(host, 7), Ui.dp(host, 7), Ui.dp(host, 7)) })
-		heroButton = play
-		// The rest of "Continue watching" as tall cards beside the hero.
-		val tall = (height * 0.54f).toInt() to height
-		more.forEach { next ->
-			val tile = host.cards.create(strip, CardStyle.POSTER, tall)
-			host.cards.bind(tile, next, CardStyle.POSTER)
-			tile.tag = "resume|${next.id}"
-			tile.setOnClickListener { host.openItem(next) }
-			Ui.focusScale(tile, 1.05f) { focused -> if (focused) host.setBackdrop(next) }
-			strip.addView(tile)
+
+		featureNote(item)?.let { note ->
+			card.addView(TextView(host).apply {
+				text = note
+				typeface = Ui.bold(host)
+				setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+				setTextColor(0xFFFFFFFF.toInt())
+				background = ContextCompat.getDrawable(host, R.drawable.bg_hud)
+				setPadding(Ui.dp(host, 14), Ui.dp(host, 7), Ui.dp(host, 14), Ui.dp(host, 7))
+			}, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+				android.view.Gravity.BOTTOM or android.view.Gravity.END).apply { setMargins(0, 0, Ui.dp(host, 22), Ui.dp(host, 24)) })
 		}
-		column.addView(rowView)
+
+		column.addView(card, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, height).apply {
+			marginEnd = Ui.dp(host, 44)
+			bottomMargin = Ui.dp(host, 4)
+		})
+		heroButton = play
 		if (host.prefs.animations) {
 			card.alpha = 0f
-			card.scaleX = 0.97f
-			card.scaleY = 0.97f
-			card.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(320L).withLayer().start()
+			card.animate().alpha(1f).setDuration(320L).withLayer().start()
+		}
+	}
+
+	/** Small note in the banner's corner: time left, unwatched episodes. */
+	private fun featureNote(item: JfItem): String? {
+		val user = item.userData
+		if (user != null && user.hasResume && item.runtimeMs > 0) {
+			val leftMin = ((item.runtimeMs - user.positionMs) / 60_000L).coerceAtLeast(1)
+			return if (leftMin >= 60) "${leftMin / 60} h ${leftMin % 60} min left" else "$leftMin min left"
+		}
+		val unplayed = user?.unplayedCount ?: 0
+		if (item.type == "Series" && unplayed > 0) return if (unplayed == 1) "1 new episode" else "$unplayed unwatched episodes"
+		return null
+	}
+
+	/** Play: resume / start a movie or episode; for a show, its next episode. */
+	private fun playFeatured(item: JfItem) {
+		if (item.type != "Series") {
+			PlayerActivity.play(host, item.id, startMs = -1L)
+			return
+		}
+		host.lifecycleScope.launch {
+			val next = runCatching {
+				host.api.nextUp(host.session, 1, item.id).firstOrNull()
+					?: host.api.episodes(host.session, item.id, null).firstOrNull()
+			}.getOrNull()
+			if (next != null) PlayerActivity.play(host, next.id, startMs = -1L) else DetailActivity.start(host, item.id)
 		}
 	}
 

@@ -32,6 +32,13 @@ object Updater {
 
 	val currentVersion: String get() = BuildConfig.VERSION_NAME
 
+	/** Release notes without the build-tool credit lines (Co-Authored-By, session links). */
+	fun cleanNotes(body: String): String = body.lines()
+		.filterNot { NOTE_NOISE.containsMatchIn(it) }
+		.joinToString("\n").trim()
+
+	private val NOTE_NOISE = Regex("(?i)^\\s*(co-authored-by|claude-session|generated with)\\b|claude\\.(ai|com)")
+
 	/** The newest release that has an APK for this build, or null if there is none yet. */
 	suspend fun latest(): Release? = withContext(Dispatchers.IO) {
 		val connection = (URL("https://api.github.com/repos/$REPO/releases/latest").openConnection() as HttpURLConnection).apply {
@@ -55,7 +62,7 @@ object Updater {
 					return@withContext Release(
 						tag = tag,
 						version = tag.trimStart('v', 'V'),
-						notes = json.optString("body").takeIf { it != "null" }.orEmpty().trim(),
+						notes = cleanNotes(json.optString("body").takeIf { it != "null" }.orEmpty()),
 						apkUrl = asset.optString("browser_download_url"),
 						apkSize = asset.optLong("size", -1L),
 					)

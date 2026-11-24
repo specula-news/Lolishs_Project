@@ -175,6 +175,11 @@ class Prefs(context: Context) {
 		get() = bool("ui_hero", true)
 		set(value) = putBool("ui_hero", value)
 
+	/** Home rows as wide 16:9 cards (streaming-app style) instead of posters. */
+	var homeWideCards: Boolean
+		get() = bool("ui_home_wide", true)
+		set(value) = putBool("ui_home_wide", value)
+
 	var showRatings: Boolean
 		get() = bool("ui_ratings", true)
 		set(value) = putBool("ui_ratings", value)

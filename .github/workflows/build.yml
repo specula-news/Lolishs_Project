@@ -43,6 +43,8 @@ jobs:
           NOTES: ${{ github.event.head_commit.message }}
         run: |
           TAG="v2.1.${GITHUB_RUN_NUMBER}"
+          # Release notes = the commit message, without tool credit lines (shown in the in-app update).
+          NOTES=$(printf '%s\n' "$NOTES" | grep -viE '^[[:space:]]*(co-authored-by|claude-session|generated with)|claude\.(ai|com)' || true)
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             # Re-run of the same build: just replace the files.
             gh release upload "$TAG" out/*.apk --repo "$GITHUB_REPOSITORY" --clobber

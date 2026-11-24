@@ -102,6 +102,7 @@ class MainActivity : BaseActivity() {
 		brandText.text = getString(R.string.app_name)
 		updates = UpdateFlow(this) { message -> toast(message) }
 		applyShellStyle()
+		window.setBackgroundDrawable(null) // the root view paints the background; skip one full-screen layer
 
 		buildNav(emptyList())
 		val start = startItem()
@@ -256,7 +257,9 @@ class MainActivity : BaseActivity() {
 			(shell.parent as View).background = ContextCompat.getDrawable(this, R.drawable.bg_glass_window)
 			shell.background = ContextCompat.getDrawable(this, R.drawable.bg_glass_panel)
 			(shell.layoutParams as FrameLayout.LayoutParams).setMargins(Ui.dp(this, 26), Ui.dp(this, 20), Ui.dp(this, 26), Ui.dp(this, 20))
-			shell.clipToOutline = true
+			// No clipToOutline here: clipping the whole UI to a rounded shape costs every frame. The
+			// content just stays clear of the rounded corners.
+			content.setPadding(0, Ui.dp(this, 12), Ui.dp(this, 8), Ui.dp(this, 12))
 			backdrop.scaleType = ImageView.ScaleType.CENTER_CROP
 		}
 		if (!topNav) return
@@ -617,7 +620,7 @@ class MainActivity : BaseActivity() {
 	fun setBackdropUrl(url: String?) {
 		pendingBackdrop = url
 		handler.removeCallbacks(applyBackdrop)
-		handler.postDelayed(applyBackdrop, 350L)
+		handler.postDelayed(applyBackdrop, if (glass) 500L else 350L)
 	}
 
 	private val applyBackdrop = Runnable {
@@ -631,10 +634,20 @@ class MainActivity : BaseActivity() {
 		if (glass) {
 			Images.fetch(url, transform = { app.lumen.player.util.Blur.soft(it) }) { bitmap ->
 				if (pendingBackdrop != url || bitmap == null) return@fetch
-				backdrop.animate().cancel()
-				backdrop.alpha = 0f
-				backdrop.setImageBitmap(bitmap)
-				backdrop.animate().alpha(0.95f).setDuration(450L).start()
+				val next = android.graphics.drawable.BitmapDrawable(resources, bitmap)
+				val current = backdrop.drawable
+				val previous = if (current is android.graphics.drawable.TransitionDrawable) current.getDrawable(current.numberOfLayers - 1) else current
+				if (previous == null || backdrop.alpha < 0.05f) {
+					backdrop.animate().cancel()
+					backdrop.setImageDrawable(next)
+					backdrop.alpha = 0f
+					backdrop.animate().alpha(0.95f).setDuration(300L).start()
+				} else {
+					// Blend the two tiny blurred images (no fade to black, no full-screen alpha animation).
+					val blend = android.graphics.drawable.TransitionDrawable(arrayOf(previous, next)).apply { isCrossFadeEnabled = true }
+					backdrop.setImageDrawable(blend)
+					blend.startTransition(320)
+				}
 			}
 			return@Runnable
 		}

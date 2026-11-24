@@ -162,6 +162,9 @@ class SettingsPage(host: MainActivity, private val scrollToAccount: Boolean = fa
 		b.stepper("Navigation", "Sidebar on the left, or a see-through bar across the top", value = { if (prefs.navPosition == 1) "Top" else "Left" }) { _, _ ->
 			appearance { prefs.navPosition = if (prefs.navPosition == 1) 0 else 1 }
 		}
+		b.stepper("Home rows", "Wide cards like the streaming apps, or posters", value = { if (prefs.homeWideCards) "Wide" else "Posters" }) { _, _ ->
+			appearance { prefs.homeWideCards = !prefs.homeWideCards }
+		}
 		b.stepper("Poster size", value = { SIZES4[prefs.posterSize.coerceIn(0, 3)] }) { d, _ ->
 			appearance { prefs.posterSize = (prefs.posterSize + d).coerceIn(0, 3) }
 		}
@@ -190,9 +193,9 @@ class SettingsPage(host: MainActivity, private val scrollToAccount: Boolean = fa
 				host.restart()
 			}
 		}
-		b.toggle("Titles under posters", isOn = { prefs.showCardTitles }) { appearance { prefs.showCardTitles = it } }
+		b.toggle("Titles on cards", isOn = { prefs.showCardTitles }) { appearance { prefs.showCardTitles = it } }
 		b.toggle("Ratings on posters", isOn = { prefs.showRatings }) { appearance { prefs.showRatings = it } }
-		b.toggle("Featured banner on Home", isOn = { prefs.showHero }) { appearance { prefs.showHero = it } }
+		b.toggle("Big featured banner on Home", isOn = { prefs.showHero }) { appearance { prefs.showHero = it } }
 		b.toggle("Home: Continue watching", isOn = { prefs.rowContinue }) { appearance { prefs.rowContinue = it } }
 		b.toggle("Home: Next up", isOn = { prefs.rowNextUp }) { appearance { prefs.rowNextUp = it } }
 		b.toggle("Home: Latest per library", isOn = { prefs.rowLatest }) { appearance { prefs.rowLatest = it } }

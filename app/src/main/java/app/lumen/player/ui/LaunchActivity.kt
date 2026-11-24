@@ -43,7 +43,7 @@ class LaunchActivity : Activity() {
 			typeface = Typeface.DEFAULT_BOLD
 		})
 		root.addView(TextView(this).apply {
-			text = "Take a photo of this screen and send it to Claude so it can be fixed. Then press Continue."
+			text = "Take a photo of this screen so the problem can be fixed. Then press Continue."
 			setTextColor(Color.rgb(179, 168, 149))
 			setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
 			setPadding(0, (6 * density).toInt(), 0, (12 * density).toInt())

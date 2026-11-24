@@ -40,8 +40,6 @@ class Cards(
 		return width to height
 	}
 
-	private val glass: Boolean get() = app.lumen.player.util.Themes.isGlass
-
 	/** [size] overrides the Appearance size (used for the tall cards next to the Glass hero). */
 	fun create(parent: ViewGroup, style: CardStyle, size: Pair<Int, Int>? = null): View {
 		val view = inflater.inflate(R.layout.item_card, parent, false)
@@ -55,14 +53,14 @@ class Cards(
 		listOf(R.id.card_title, R.id.card_subtitle).forEach { id ->
 			val text = view.findViewById<TextView>(id)
 			text.layoutParams = text.layoutParams.apply { this.width = width }
-			text.visibility = if (prefs.showCardTitles && !glass) View.VISIBLE else View.GONE
+			text.visibility = View.GONE
 		}
-		if (glass && prefs.showCardTitles) addOverlay(frame)
+		if (prefs.showCardTitles) addOverlay(frame)
 		Ui.focusScale(view, 1.07f)
 		return view
 	}
 
-	/** Glass cards: kind, title and genres written on the artwork over a soft dark fade. */
+	/** Kind, title and genres written on the artwork over a soft dark fade (every theme). */
 	private fun addOverlay(frame: FrameLayout) {
 		val fade = View(context).apply { background = ContextCompat.getDrawable(context, R.drawable.scrim_bottom) }
 		frame.addView(fade, 2, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, (frame.layoutParams.height * 0.55f).toInt(), android.view.Gravity.BOTTOM))
@@ -85,7 +83,6 @@ class Cards(
 			ellipsize = android.text.TextUtils.TruncateAt.END
 			setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
 			setTextColor(0xFFFFFFFF.toInt())
-			setShadowLayer(6f, 0f, 1f, 0x99000000.toInt())
 		})
 		box.addView(TextView(context).apply {
 			tag = "overlay_sub"
@@ -132,7 +129,7 @@ class Cards(
 
 		view.findViewById<TextView>(R.id.card_title).text = titleFor(item, style)
 		view.findViewById<TextView>(R.id.card_subtitle).text = subtitleFor(item, style)
-		if (glass) bindOverlay(view, item, style)
+		bindOverlay(view, item, style)
 
 		val user = item.userData
 		when {
@@ -222,44 +219,20 @@ class Cards(
 			gravity = android.view.Gravity.BOTTOM
 			setPadding(Ui.dp(context, 8), 0, 0, Ui.dp(context, 2))
 		}
-		if (glass) {
-			// Glass: plain white title with a chevron, like "Continue Watching  ›".
-			line.gravity = android.view.Gravity.CENTER_VERTICAL
-			line.addView(TextView(context).apply {
-				text = title
-				typeface = Ui.bold(context)
-				setTextSize(TypedValue.COMPLEX_UNIT_SP, if (sizeSp >= 30f) sizeSp * 0.8f else sizeSp * 0.85f)
-				setTextColor(Ui.color(context, R.attr.lumenText))
-			})
-			if (sizeSp < 30f) {
-				line.addView(TextView(context).apply {
-					text = "  ›"
-					typeface = Ui.bold(context)
-					setTextSize(TypedValue.COMPLEX_UNIT_SP, sizeSp)
-					setTextColor(Ui.color(context, R.attr.lumenText2))
-				})
-			}
-			return line
-		}
-		val dot = View(context).apply {
-			background = ContextCompat.getDrawable(context, R.drawable.dot_green)
-		}
-		line.addView(dot, LinearLayout.LayoutParams(Ui.dp(context, 8), Ui.dp(context, 8)).apply {
-			marginEnd = Ui.dp(context, 12)
-			bottomMargin = Ui.dp(context, 11)
-		})
+		// Plain bold title with a chevron, like "Continue Watching  ›" (page titles without it).
+		line.gravity = android.view.Gravity.CENTER_VERTICAL
 		line.addView(TextView(context).apply {
 			text = title
-			typeface = Ui.display(context)
-			setTextSize(TypedValue.COMPLEX_UNIT_SP, sizeSp)
+			typeface = if (sizeSp >= 30f) Ui.display(context) else Ui.bold(context)
+			setTextSize(TypedValue.COMPLEX_UNIT_SP, if (sizeSp >= 30f) sizeSp * 0.8f else sizeSp * 0.85f)
 			setTextColor(Ui.color(context, R.attr.lumenText))
 		})
-		if (count != null && count > 0) {
+		if (sizeSp < 30f) {
 			line.addView(TextView(context).apply {
-				text = "  $count"
-				typeface = Typeface.create(Ui.display(context), Typeface.NORMAL)
-				setTextSize(TypedValue.COMPLEX_UNIT_SP, sizeSp * 0.85f)
-				setTextColor(Ui.color(context, R.attr.lumenText3))
+				text = "  ›"
+				typeface = Ui.bold(context)
+				setTextSize(TypedValue.COMPLEX_UNIT_SP, sizeSp)
+				setTextColor(Ui.color(context, R.attr.lumenText2))
 			})
 		}
 		return line
