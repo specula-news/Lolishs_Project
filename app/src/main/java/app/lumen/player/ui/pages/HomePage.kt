@@ -248,7 +248,7 @@ class HomePage(host: MainActivity) : Page(host) {
 				card.tag = "${row.key}|${item.id}"
 				card.setOnClickListener { host.openItem(item) }
 				val frame = card.findViewById<FrameLayout>(R.id.card_frame)
-				Ui.focusScale(card, 1.07f) { focused ->
+				Ui.focusScale(card, host.cards.focusZoom) { focused ->
 					if (focused) {
 						host.setBackdrop(item)
 						// Every movie / show plays a full-screen preview after a moment.
@@ -297,9 +297,16 @@ class HomePage(host: MainActivity) : Page(host) {
 	 * Up to 10 of the newest movies and shows (taking turns between the libraries), for the banner.
 	 * Falls back to what you're watching when the libraries have no artwork.
 	 */
+	/**
+	 * The banner's 10 titles: picked at random from what's new in your (visible) libraries, a fresh 10
+	 * every day. The same all day, so coming back to Home doesn't shuffle them.
+	 */
 	private fun pickFeatured(data: List<RowData>): List<JfItem> {
+		val calendar = java.util.Calendar.getInstance()
+		val day = calendar.get(java.util.Calendar.YEAR) * 1000 + calendar.get(java.util.Calendar.DAY_OF_YEAR)
+		val random = java.util.Random(day * 31L + (host.prefs.userId?.hashCode() ?: 0))
 		val lists = data.filter { it.key.startsWith("latest") }.map { row ->
-			row.items.filter { it.backdropTags.isNotEmpty() || it.parentBackdropTags.isNotEmpty() }
+			row.items.filter { it.backdropTags.isNotEmpty() || it.parentBackdropTags.isNotEmpty() }.shuffled(random)
 		}
 		val picked = mutableListOf<JfItem>()
 		var i = 0

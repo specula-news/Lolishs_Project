@@ -53,13 +53,22 @@ class PreviewController(private val host: MainActivity, private val root: FrameL
 	private var videoHeight = 9f
 	private var countdownLeft = 0
 
-	// Full-screen preview for cards: the video fills the screen behind the (see-through) menu,
-	// name and description at the bottom.
+	// Card previews: a big window in the movie's own shape (nothing cut off) in the middle of the page,
+	// the page dimmed around it and the menu see-through. Name and description at its bottom.
 	private val panel = FrameLayout(host).apply {
-		setBackgroundColor(0xFF000000.toInt())
+		setBackgroundColor(0xD9000000.toInt())
 		visibility = View.GONE
 	}
 	private var panelShown = false
+	private val videoBox = FrameLayout(host).apply {
+		setBackgroundColor(0xFF000000.toInt())
+		background = android.graphics.drawable.GradientDrawable().apply {
+			setColor(0xFF000000.toInt())
+			cornerRadius = Ui.dp(host, 14).toFloat()
+		}
+		clipToOutline = true
+		elevation = Ui.dp(host, 16).toFloat()
+	}
 	private val panelVideo = FrameLayout(host)
 	private val panelKind = text(12f, bold = true).apply {
 		letterSpacing = 0.2f
@@ -70,12 +79,12 @@ class PreviewController(private val host: MainActivity, private val root: FrameL
 		maxLines = 2
 		ellipsize = android.text.TextUtils.TruncateAt.END
 		setTextColor(0xFFFFFFFF.toInt())
-		setTextSize(TypedValue.COMPLEX_UNIT_SP, 38f)
+		setTextSize(TypedValue.COMPLEX_UNIT_SP, 32f)
 		setShadowLayer(12f, 0f, 2f, 0xAA000000.toInt())
 	}
 	private val panelFacts = text(14f, bold = true).apply { maxLines = 1; setPadding(0, Ui.dp(host, 8), 0, 0) }
-	private val panelOverview = text(15.5f).apply {
-		maxLines = 3
+	private val panelOverview = text(14.5f).apply {
+		maxLines = 2
 		ellipsize = android.text.TextUtils.TruncateAt.END
 		setLineSpacing(0f, 1.2f)
 		setTextColor(0xE6FFFFFF.toInt())
@@ -88,30 +97,25 @@ class PreviewController(private val host: MainActivity, private val root: FrameL
 	}
 
 	init {
-		panel.addView(panelVideo, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-		// Dark at the top (menu) and the bottom (name and description), clear in the middle.
-		panel.addView(View(host).apply {
-			background = android.graphics.drawable.GradientDrawable(
-				android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,
-				intArrayOf(0x99000000.toInt(), 0x00000000),
-			)
-		}, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(host, 150), Gravity.TOP))
-		panel.addView(View(host).apply {
+		videoBox.addView(panelVideo, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+		// Dark fade at the bottom of the window for the name and description.
+		videoBox.addView(View(host).apply {
 			background = android.graphics.drawable.GradientDrawable(
 				android.graphics.drawable.GradientDrawable.Orientation.BOTTOM_TOP,
-				intArrayOf(0xE6000000.toInt(), 0x66000000, 0x00000000),
+				intArrayOf(0xD9000000.toInt(), 0x59000000, 0x00000000),
 			)
-		}, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(host, 300), Gravity.BOTTOM))
+		}, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
 		val words = LinearLayout(host).apply {
 			orientation = LinearLayout.VERTICAL
 			gravity = Gravity.BOTTOM
-			setPadding(Ui.dp(host, 56), 0, Ui.dp(host, 40), Ui.dp(host, 40))
+			setPadding(Ui.dp(host, 30), 0, Ui.dp(host, 30), Ui.dp(host, 24))
 		}
 		words.addView(panelKind)
-		words.addView(panelTitle, LinearLayout.LayoutParams(Ui.dp(host, 680), ViewGroup.LayoutParams.WRAP_CONTENT))
+		words.addView(panelTitle, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
 		words.addView(panelFacts)
-		words.addView(panelOverview, LinearLayout.LayoutParams(Ui.dp(host, 620), ViewGroup.LayoutParams.WRAP_CONTENT))
-		panel.addView(words, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM))
+		words.addView(panelOverview, LinearLayout.LayoutParams(Ui.dp(host, 560), ViewGroup.LayoutParams.WRAP_CONTENT))
+		videoBox.addView(words, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM))
+		panel.addView(videoBox, FrameLayout.LayoutParams(0, 0))
 		// Under the menu (which turns see-through while a preview plays), over the backdrop.
 		val shell = host.findViewById<View>(R.id.shell)
 		val index = root.indexOfChild(shell).takeIf { it >= 0 } ?: root.childCount
@@ -247,17 +251,23 @@ class PreviewController(private val host: MainActivity, private val root: FrameL
 	}
 
 	private fun start(shown: JfItem, playable: JfItem, box: FrameLayout) {
-		val view = TextureView(host).apply { alpha = 0f }
-		view.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> crop(view) }
+		// The movie's own shape until the player reports the real one.
+		videoWidth = 16f
+		videoHeight = 9f
+		val view = TextureView(host).apply {
+			alpha = 0f
+			isOpaque = false
+		}
 		if (inline) {
 			box.addView(view, insertIndex.coerceAtMost(box.childCount), FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
 			box.addView(countdown, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
 				Gravity.TOP or Gravity.END).apply { setMargins(0, Ui.dp(host, 18), Ui.dp(host, 20), 0) })
+			box.post { fitInline(view, box) }
 		} else {
 			showPanel(shown)
 			panelVideo.addView(view, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-			panel.addView(countdown, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
-				Gravity.BOTTOM or Gravity.END).apply { setMargins(0, 0, Ui.dp(host, 44), Ui.dp(host, 44)) })
+			videoBox.addView(countdown, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+				Gravity.TOP or Gravity.END).apply { setMargins(0, Ui.dp(host, 16), Ui.dp(host, 18), 0) })
 		}
 		countdown.visibility = View.GONE
 		surface = view
@@ -284,7 +294,9 @@ class PreviewController(private val host: MainActivity, private val root: FrameL
 					videoWidth = videoSize.width * videoSize.pixelWidthHeightRatio
 					videoHeight = videoSize.height.toFloat()
 				}
-				surface?.let { crop(it) }
+				surface?.let { view ->
+					if (inline) anchor?.let { fitInline(view, it) } else layoutBox()
+				}
 			}
 
 			override fun onPlayerError(error: PlaybackException) = stop()
@@ -303,20 +315,73 @@ class PreviewController(private val host: MainActivity, private val root: FrameL
 		state = State.PLAYING
 	}
 
-	/** The preview fills the screen; the page fades away and the menu turns see-through over it. */
+	/** The page fades away, the menu turns see-through, and a big window shows the preview. */
 	private fun showPanel(shown: JfItem) {
 		panelKind.text = FeatureText.kind(shown)
 		panelTitle.text = FeatureText.title(shown)
-		panelTitle.setTextSize(TypedValue.COMPLEX_UNIT_SP, if (panelTitle.text.length > 26) 30f else 38f)
+		panelTitle.setTextSize(TypedValue.COMPLEX_UNIT_SP, if (panelTitle.text.length > 26) 26f else 32f)
 		panelFacts.text = FeatureText.facts(host, shown)
 		panelOverview.text = shown.overview.orEmpty()
 		panelOverview.visibility = if (shown.overview.isNullOrBlank()) View.GONE else View.VISIBLE
+		layoutBox()
 		panel.animate().cancel()
 		panel.alpha = 0f
 		panel.visibility = View.VISIBLE
 		panel.animate().alpha(1f).setDuration(350L).start()
 		panelShown = true
 		host.setPreviewing(true)
+	}
+
+	/** Width / height of the movie (16:9 until the player knows). */
+	private val aspect: Float
+		get() = (videoWidth / videoHeight).takeIf { it in 0.5f..4f } ?: (16f / 9f)
+
+	/**
+	 * The window: as big as fits in the page area (most of it, not all of it) in the movie's own shape,
+	 * so nothing is cut off.
+	 */
+	private fun layoutBox() {
+		val area = Rect()
+		val screen = Rect()
+		host.contentArea.getGlobalVisibleRect(area)
+		root.getGlobalVisibleRect(screen)
+		if (area.width() <= 0 || area.height() <= 0) {
+			area.set(screen)
+		}
+		val maxW = (area.width() * 0.88f).toInt()
+		val maxH = (area.height() * 0.88f).toInt()
+		var w = maxW
+		var h = (w / aspect).toInt()
+		if (h > maxH) {
+			h = maxH
+			w = (h * aspect).toInt()
+		}
+		val params = FrameLayout.LayoutParams(w, h).apply {
+			leftMargin = area.left - screen.left + (area.width() - w) / 2
+			topMargin = area.top - screen.top + (area.height() - h) / 2
+		}
+		val old = videoBox.layoutParams as? FrameLayout.LayoutParams
+		if (old == null || old.width != w || old.height != h || old.leftMargin != params.leftMargin || old.topMargin != params.topMargin) {
+			videoBox.layoutParams = params
+		}
+		(panelOverview.layoutParams as? LinearLayout.LayoutParams)?.let { it.width = (w * 0.72f).toInt() }
+	}
+
+	/** Banner: the video keeps its own shape, on the right of the banner (the words stay over the artwork). */
+	private fun fitInline(view: TextureView, box: FrameLayout) {
+		val bw = box.width
+		val bh = box.height
+		if (bw <= 0 || bh <= 0) return
+		var h = bh
+		var w = (h * aspect).toInt()
+		if (w > bw) {
+			w = bw
+			h = (w / aspect).toInt()
+		}
+		val old = view.layoutParams as? FrameLayout.LayoutParams
+		if (old == null || old.width != w || old.height != h) {
+			view.layoutParams = FrameLayout.LayoutParams(w, h, Gravity.END or Gravity.CENTER_VERTICAL)
+		}
 	}
 
 	/** "Playing in 5…" during the last seconds before the real player takes over. */
@@ -336,19 +401,6 @@ class PreviewController(private val host: MainActivity, private val root: FrameL
 		val position = player?.currentPosition ?: 0L
 		stop()
 		PlayerActivity.play(host, watched.id, startMs = position)
-	}
-
-	/** Fills the window, cropping what doesn't fit. */
-	private fun crop(view: TextureView) {
-		val w = view.width.toFloat()
-		val h = view.height.toFloat()
-		if (w <= 0f || h <= 0f || videoHeight <= 0f) return
-		val video = videoWidth / videoHeight
-		val box = w / h
-		var sx = 1f
-		var sy = 1f
-		if (video > box) sx = video / box else sy = box / video
-		view.setTransform(Matrix().apply { setScale(sx, sy, w / 2f, h / 2f) })
 	}
 
 	private companion object {

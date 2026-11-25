@@ -114,6 +114,8 @@ class PlayerActivity : ComponentActivity(), EngineListener, TimelineView.Listene
 	private var airCard: View? = null
 
 	private var controlsVisible = false
+	/** Seeking with LEFT / RIGHT: only the timeline and times show; OK brings up the buttons. */
+	private var seekOnly = false
 	private var panelType: PanelType? = null
 	private var panelReturnFocus: View? = null
 	private var scrubbing = false
@@ -1196,10 +1198,12 @@ class PlayerActivity : ComponentActivity(), EngineListener, TimelineView.Listene
 					return true
 				}
 				KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
+					if (!controlsVisible || seekOnly) showSeekBar()
 					seekBy(30_000L)
 					return true
 				}
 				KeyEvent.KEYCODE_MEDIA_REWIND -> {
+					if (!controlsVisible || seekOnly) showSeekBar()
 					seekBy(-30_000L)
 					return true
 				}
@@ -1230,6 +1234,25 @@ class PlayerActivity : ComponentActivity(), EngineListener, TimelineView.Listene
 				}
 			}
 
+			if (controlsVisible && seekOnly) {
+				// Only the timeline is up: OK / UP / DOWN bring up the buttons (OK also keeps the new spot).
+				when (code) {
+					KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> {
+						if (scrubbing) commitScrub()
+						showControls(btnPlay)
+						return true
+					}
+					KeyEvent.KEYCODE_DPAD_UP -> {
+						showControls(timeline)
+						return true
+					}
+					KeyEvent.KEYCODE_DPAD_DOWN -> {
+						showControls(btnPlay)
+						return true
+					}
+				}
+			}
+
 			if (!controlsVisible) {
 				when (code) {
 					KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> {
@@ -1238,7 +1261,8 @@ class PlayerActivity : ComponentActivity(), EngineListener, TimelineView.Listene
 						return true
 					}
 					KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> {
-						showControls(timeline)
+						// Just the timeline and the times, so you see the picture while you seek.
+						showSeekBar()
 						onScrub(if (code == KeyEvent.KEYCODE_DPAD_LEFT) -1 else 1, event.repeatCount)
 						return true
 					}
@@ -1277,7 +1301,42 @@ class PlayerActivity : ComponentActivity(), EngineListener, TimelineView.Listene
 
 	// Controls ----------------------------------------------------------------------------------
 
+	/** The rows under the timeline (the buttons). */
+	private val buttonRows: List<View>
+		get() = (1 until bottomBar.childCount).map { bottomBar.getChildAt(it) }
+
+	/** Seeking: only the timeline and the times, no buttons and no title bar. */
+	private fun showSeekBar() {
+		if (controlsVisible && !seekOnly) {
+			timeline.requestFocus()
+			bumpHideTimer()
+			return
+		}
+		seekOnly = true
+		buttonRows.forEach { it.visibility = View.GONE }
+		if (!controlsVisible) {
+			controlsVisible = true
+			bottomBar.animate().cancel()
+			bottomBar.visibility = View.VISIBLE
+			bottomBar.animate().alpha(1f).setDuration(150L).start()
+			engine?.let { updateClock(it.positionMs, it.durationMs) }
+		}
+		timeline.requestFocus()
+		bumpHideTimer()
+	}
+
 	private fun showControls(focus: View? = null) {
+		if (seekOnly) {
+			// From "only the timeline" to the full controls.
+			seekOnly = false
+			buttonRows.forEach { it.visibility = View.VISIBLE }
+			topBar.animate().cancel()
+			topBar.visibility = View.VISIBLE
+			topBar.animate().alpha(1f).setDuration(180L).start()
+			refreshBadges()
+		} else {
+			buttonRows.forEach { if (it.visibility != View.VISIBLE) it.visibility = View.VISIBLE }
+		}
 		if (!controlsVisible) {
 			controlsVisible = true
 			listOf(topBar, bottomBar).forEach { bar ->
@@ -1298,6 +1357,7 @@ class PlayerActivity : ComponentActivity(), EngineListener, TimelineView.Listene
 	private fun hideControls() {
 		if (!controlsVisible) return
 		controlsVisible = false
+		seekOnly = false
 		cancelScrub()
 		listOf(topBar, bottomBar).forEach { bar ->
 			bar.animate().cancel()
@@ -1388,6 +1448,11 @@ class PlayerActivity : ComponentActivity(), EngineListener, TimelineView.Listene
 	}
 
 	override fun onScrubConfirm() {
+		if (seekOnly) {
+			if (scrubbing) commitScrub()
+			showControls(btnPlay)
+			return
+		}
 		if (scrubbing) commitScrub() else togglePlayPause()
 	}
 

@@ -62,6 +62,13 @@ object Ui {
 		else -> 280
 	}
 
+	/** How much the selected card grows ("Selected card zoom"). */
+	fun cardScale(prefs: Prefs): Float = when (prefs.cardZoom) {
+		0 -> 1.07f
+		2 -> 1.24f
+		else -> 1.16f
+	}
+
 	/** Sidebar / button icon size in dp. */
 	fun iconDp(prefs: Prefs): Int = when (prefs.iconSize) {
 		0 -> 17

@@ -34,6 +34,9 @@ class Cards(
 ) {
 	private val inflater = LayoutInflater.from(context)
 
+	/** How much the selected card grows (Settings › Selected card zoom). */
+	val focusZoom: Float get() = Ui.cardScale(prefs)
+
 	fun cardSize(style: CardStyle): Pair<Int, Int> {
 		val width = Ui.dp(context, if (style == CardStyle.POSTER) Ui.posterWidthDp(prefs) else Ui.thumbWidthDp(prefs))
 		val height = if (style == CardStyle.POSTER) (width * 1.5f).toInt() else (width * 9f / 16f).toInt()
@@ -56,7 +59,7 @@ class Cards(
 			text.visibility = View.GONE
 		}
 		if (prefs.showCardTitles) addOverlay(frame)
-		Ui.focusScale(view, 1.07f)
+		Ui.focusScale(view, focusZoom)
 		return view
 	}
 
@@ -193,6 +196,9 @@ class Cards(
 		val row = LinearLayout(context).apply {
 			orientation = LinearLayout.VERTICAL
 			setPadding(0, Ui.dp(context, 18), 0, 0)
+			// The selected card grows past the row's edges.
+			clipChildren = false
+			clipToPadding = false
 		}
 		row.addView(heading(title, count))
 		val scroller = HorizontalScrollView(context).apply {
@@ -206,7 +212,7 @@ class Cards(
 			orientation = LinearLayout.HORIZONTAL
 			clipChildren = false
 			clipToPadding = false
-			setPadding(Ui.dp(context, 2), Ui.dp(context, 8), Ui.dp(context, 48), Ui.dp(context, 8))
+			setPadding(Ui.dp(context, 2), Ui.dp(context, 14), Ui.dp(context, 48), Ui.dp(context, 14))
 		}
 		scroller.addView(strip)
 		row.addView(scroller)

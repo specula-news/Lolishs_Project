@@ -132,6 +132,11 @@ class Prefs(context: Context) {
 		get() = int("ui_thumb_size", 1)
 		set(value) = putInt("ui_thumb_size", value)
 
+	/** How much the selected card grows: 0 = a little, 1 = big (default), 2 = bigger. */
+	var cardZoom: Int
+		get() = int("ui_card_zoom", 1)
+		set(value) = putInt("ui_card_zoom", value)
+
 	/** 0 = extra small, 1 = small (default in every theme), 2 = medium, 3 = large. */
 	var iconSize: Int
 		get() = int("ui_icon_size_v2", 1)

@@ -27,6 +27,8 @@ class TvRecyclerView @JvmOverloads constructor(
 		descendantFocusability = FOCUS_AFTER_DESCENDANTS
 		itemAnimator = null
 		clipToPadding = false
+		// The selected card grows over its neighbours.
+		clipChildren = false
 	}
 
 	override fun focusSearch(focused: View, direction: Int): View? {
@@ -91,7 +93,7 @@ class CardGridAdapter(
 		val item = items[position]
 		cards.bind(holder.itemView, item, style)
 		holder.itemView.setOnClickListener { onClick(item) }
-		app.lumen.player.util.Ui.focusScale(holder.itemView, 1.07f) { focused ->
+		app.lumen.player.util.Ui.focusScale(holder.itemView, cards.focusZoom) { focused ->
 			if (focused) onFocus(item)
 			onFocusChange?.invoke(item, holder.itemView, focused)
 		}

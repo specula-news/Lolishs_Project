@@ -188,6 +188,9 @@ class SettingsPage(host: MainActivity, private val scrollToAccount: Boolean = fa
 		b.stepper("Wide tile size", "Wide cards: Home rows, Continue watching, episodes · shows when you leave Settings", value = { SIZES5[prefs.thumbSize.coerceIn(0, 4)] }) { d, _ ->
 			appearance { prefs.thumbSize = (prefs.thumbSize + d).coerceIn(0, 4) }
 		}
+		b.stepper("Selected card zoom", "How much the card you're on grows, so it's easy to see", value = { ZOOMS[prefs.cardZoom.coerceIn(0, 2)] }) { d, _ ->
+			appearance { prefs.cardZoom = (prefs.cardZoom + d).coerceIn(0, 2) }
+		}
 		b.stepper("Icon size", "Menu and player buttons", value = { ICON_SIZES[prefs.iconSize.coerceIn(0, 3)] }) { d, _ ->
 			appearance { prefs.iconSize = (prefs.iconSize + d).coerceIn(0, 3) }
 		}
@@ -349,6 +352,7 @@ class SettingsPage(host: MainActivity, private val scrollToAccount: Boolean = fa
 		val SIZES3 = listOf("Small", "Medium", "Large")
 		val ICON_SIZES = listOf("Extra small", "Small", "Medium", "Large")
 		val SIZES5 = listOf("Small", "Medium", "Large", "Extra large", "Huge")
+		val ZOOMS = listOf("A little", "Big", "Bigger")
 		val TEXT_SCALES = listOf(85, 90, 100, 110, 120, 130)
 		val SIDEBAR = listOf("Always expanded", "Icons only", "Expand when focused")
 		val STUTTER = listOf("Off", "Normal", "Sensitive")
