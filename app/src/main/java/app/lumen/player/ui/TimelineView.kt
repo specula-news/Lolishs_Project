@@ -80,10 +80,13 @@ class TimelineView @JvmOverloads constructor(
 	override fun onDraw(canvas: Canvas) {
 		super.onDraw(canvas)
 		val focused = isFocused
-		val trackHeight = (if (focused) 8f else 4f) * density
-		val thumbRadius = 9f * density
-		val left = paddingLeft + thumbRadius
-		val right = width - paddingRight - thumbRadius
+		// A thin line (about a third of the old thickness); the dot and its ring stay inside the view,
+		// so nothing is cut off at the start of the film or at the top.
+		val trackHeight = (if (focused) 3f else 2.5f) * density
+		val thumbRadius = THUMB_DP * density
+		val inset = thumbRadius * RING
+		val left = paddingLeft + inset
+		val right = width - paddingRight - inset
 		val span = (right - left).coerceAtLeast(1f)
 		val cy = height / 2f
 		val top = cy - trackHeight / 2f
@@ -117,16 +120,16 @@ class TimelineView @JvmOverloads constructor(
 
 		if (focused) {
 			val x = left + span * fraction(shown)
-			if (scrubPositionMs != null) canvas.drawCircle(x, cy, thumbRadius * 1.9f, thumbRingPaint)
+			if (scrubPositionMs != null) canvas.drawCircle(x, cy, (thumbRadius * RING).coerceAtMost(height / 2f), thumbRingPaint)
 			canvas.drawCircle(x, cy, thumbRadius, thumbPaint)
 		}
 	}
 
 	/** X position (relative to this view) of the given time; used to place the preview bubble. */
 	fun xFor(ms: Long): Float {
-		val thumbRadius = 9f * density
-		val left = paddingLeft + thumbRadius
-		val right = width - paddingRight - thumbRadius
+		val inset = THUMB_DP * density * RING
+		val left = paddingLeft + inset
+		val right = width - paddingRight - inset
 		return left + (right - left) * fraction(ms)
 	}
 
@@ -146,5 +149,11 @@ class TimelineView @JvmOverloads constructor(
 			}
 		}
 		return super.onKeyDown(keyCode, event)
+	}
+
+	private companion object {
+		/** Dot on the line while it has focus, and the ring around it while seeking (times the dot). */
+		const val THUMB_DP = 7f
+		const val RING = 1.8f
 	}
 }

@@ -1512,6 +1512,15 @@ class PlayerActivity : ComponentActivity(), EngineListener, TimelineView.Listene
 		val margin = resources.getDimension(R.dimen.overscan_h)
 		val maxX = (root.width - preview.width - margin).coerceAtLeast(margin)
 		preview.translationX = (center - preview.width / 2f).coerceIn(margin, maxX)
+		// Just above the line, whether the buttons show under it or not (seeking shows only the line).
+		val timelineTop = timelineLocation[1] - rootLocation[1]
+		val wantedBottom = timelineTop - resources.displayMetrics.density * 10f
+		if (timeline.height > 0) {
+			var ty = wantedBottom - preview.bottom
+			// Never above the top of the screen.
+			if (preview.top + ty < 0) ty = -preview.top.toFloat()
+			preview.translationY = ty
+		}
 	}
 
 	// Side panel --------------------------------------------------------------------------------
