@@ -232,6 +232,13 @@ class SettingsPage(host: MainActivity, private val scrollToAccount: Boolean = fa
 			val current = PlayerMode.fromName(prefs.defaultPlayerMode) ?: PlayerMode.EXO_DIRECT
 			prefs.defaultPlayerMode = modes[(current.ordinal + d + modes.size) % modes.size].name
 		}
+		b.stepper("Picture", "Auto fills the screen from side to side without stretching; 4:3 and other narrow pictures keep their shape", value = {
+			(app.lumen.player.engine.ScaleMode.entries.firstOrNull { it.name == prefs.pictureMode } ?: app.lumen.player.engine.ScaleMode.AUTO).label
+		}) { d, _ ->
+			val modes = app.lumen.player.engine.ScaleMode.entries
+			val current = modes.firstOrNull { it.name == prefs.pictureMode } ?: app.lumen.player.engine.ScaleMode.AUTO
+			prefs.pictureMode = modes[(current.ordinal + d + modes.size) % modes.size].name
+		}
 		b.stepper("Stutter detection", "Ask to switch player when playback stutters", value = { STUTTER[prefs.stutterDetection.coerceIn(0, 2)] }) { d, _ ->
 			prefs.stutterDetection = (prefs.stutterDetection + d + 3) % 3
 		}

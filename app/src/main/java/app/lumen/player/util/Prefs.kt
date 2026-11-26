@@ -106,6 +106,11 @@ class Prefs(context: Context) {
 		get() = int("sub_mode", 0)
 		set(value) = putInt("sub_mode", value)
 
+	/** Player picture: a ScaleMode name (Auto fills the sides without stretching; remembered). */
+	var pictureMode: String?
+		get() = str("player_picture_mode")
+		set(value) = putStr("player_picture_mode", value)
+
 	/** Language last used for "Download subtitles…" (English name, see SubtitleFinder). */
 	var subtitleDownloadLanguage: String?
 		get() = str("sub_download_lang")

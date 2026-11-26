@@ -19,6 +19,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
+import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
@@ -175,6 +176,7 @@ class ExoEngine(
 		container.addView(view, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
 		assHandler?.let { handler -> view.subtitleView?.addView(AssSubtitleView(context, handler)) }
 		playerView = view
+		view.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> applyScale() }
 		applySubtitleStyle()
 	}
 
@@ -303,11 +305,31 @@ class ExoEngine(
 
 	override fun setSpeed(speed: Float) = player.setPlaybackSpeed(speed)
 
+	private var scaleMode = ScaleMode.AUTO
+
 	override fun setScaleMode(mode: ScaleMode) {
-		playerView?.resizeMode = when (mode) {
+		scaleMode = mode
+		applyScale()
+	}
+
+	/** Auto picks Fit or Zoom from the video's real shape (pixel aspect included) and the screen's. */
+	private fun applyScale() {
+		val view = playerView ?: return
+		val wanted = when (scaleMode) {
+			ScaleMode.AUTO -> {
+				val size = player.videoSize
+				val aspect = if (size.width > 0 && size.height > 0) size.width * size.pixelWidthHeightRatio / size.height else 0f
+				val screen = if (view.width > 0 && view.height > 0) view.width.toFloat() / view.height else 16f / 9f
+				if (ScaleMode.autoFills(aspect, screen)) AspectRatioFrameLayout.RESIZE_MODE_ZOOM else AspectRatioFrameLayout.RESIZE_MODE_FIT
+			}
 			ScaleMode.FIT -> AspectRatioFrameLayout.RESIZE_MODE_FIT
 			ScaleMode.ZOOM -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
 			ScaleMode.STRETCH -> AspectRatioFrameLayout.RESIZE_MODE_FILL
+		}
+		if (view.resizeMode != wanted) view.resizeMode = when (wanted) {
+			AspectRatioFrameLayout.RESIZE_MODE_ZOOM -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+			AspectRatioFrameLayout.RESIZE_MODE_FILL -> AspectRatioFrameLayout.RESIZE_MODE_FILL
+			else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
 		}
 	}
 
@@ -445,6 +467,10 @@ class ExoEngine(
 		override fun onRenderedFirstFrame() {
 			listener?.onEngineFirstFrame()
 			checkFrameRate()
+		}
+
+		override fun onVideoSizeChanged(videoSize: VideoSize) {
+			applyScale()
 		}
 	}
 

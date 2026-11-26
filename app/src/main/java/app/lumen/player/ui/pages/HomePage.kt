@@ -203,9 +203,8 @@ class HomePage(host: MainActivity) : Page(host) {
 		val seen = prefs.newEpisodesSeen
 		val news = picks.filter { it.id !in seen }
 		if (news.isNotEmpty()) {
-			val first = news.first()
-			val more = if (news.size > 1) "  (+${news.size - 1} more)" else ""
-			host.toast("New episode: ${first.seriesName ?: first.name} ${first.episodeCode.orEmpty()}$more")
+			// A welcome card with the new episodes (once per episode).
+			host.showWelcome(news)
 			prefs.newEpisodesSeen = (seen + news.map { it.id }).toList().takeLast(400).toSet()
 		}
 		return picks.take(24)

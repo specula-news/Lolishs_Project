@@ -150,6 +150,7 @@ class VlcEngine(
 			MediaPlayer.Event.Vout -> {
 				listener?.onEngineFirstFrame()
 				reportFrameRate()
+				if (scaleMode == ScaleMode.AUTO) applyScale()
 			}
 		}
 	}
@@ -225,8 +226,24 @@ class VlcEngine(
 		player.rate = speed
 	}
 
+	private var scaleMode = ScaleMode.AUTO
+
 	override fun setScaleMode(mode: ScaleMode) {
-		player.videoScale = when (mode) {
+		scaleMode = mode
+		applyScale()
+	}
+
+	/** Auto: fill the sides when the picture is only a little narrower than the screen (see ScaleMode). */
+	private fun applyScale() {
+		player.videoScale = when (scaleMode) {
+			ScaleMode.AUTO -> {
+				val track = runCatching { player.currentVideoTrack }.getOrNull()
+				val sar = if (track != null && track.sarNum > 0 && track.sarDen > 0) track.sarNum.toFloat() / track.sarDen else 1f
+				val aspect = if (track != null && track.width > 0 && track.height > 0) track.width * sar / track.height else 0f
+				val view = layout
+				val screen = if (view != null && view.width > 0 && view.height > 0) view.width.toFloat() / view.height else 16f / 9f
+				if (ScaleMode.autoFills(aspect, screen)) MediaPlayer.ScaleType.SURFACE_FIT_SCREEN else MediaPlayer.ScaleType.SURFACE_BEST_FIT
+			}
 			ScaleMode.FIT -> MediaPlayer.ScaleType.SURFACE_BEST_FIT
 			ScaleMode.ZOOM -> MediaPlayer.ScaleType.SURFACE_FIT_SCREEN
 			ScaleMode.STRETCH -> MediaPlayer.ScaleType.SURFACE_FILL

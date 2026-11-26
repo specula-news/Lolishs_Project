@@ -102,7 +102,7 @@ class PlayerActivity : ComponentActivity(), EngineListener, TimelineView.Listene
 	private var subtitleDelayMs = 0L
 	private var audioDelayMs = 0L
 	private var speed = 1f
-	private var scaleMode = ScaleMode.FIT
+	private var scaleMode = ScaleMode.AUTO
 	private var completed = false
 	private var finishing = false
 	private var firstFrameShown = false
@@ -215,6 +215,7 @@ class PlayerActivity : ComponentActivity(), EngineListener, TimelineView.Listene
 		super.onCreate(savedInstanceState)
 		setContentView(R.layout.activity_player)
 		prefs = Prefs(this)
+		scaleMode = ScaleMode.entries.firstOrNull { it.name == prefs.pictureMode } ?: ScaleMode.AUTO
 		api = JellyfinApi(prefs)
 		hideSystemUi()
 		bindViews()
@@ -1748,6 +1749,7 @@ class PlayerActivity : ComponentActivity(), EngineListener, TimelineView.Listene
 				b.stepper("Picture", value = { scaleMode.label }) { direction, _ ->
 					val values = ScaleMode.entries
 					scaleMode = values[(scaleMode.ordinal + direction + values.size) % values.size]
+					prefs.pictureMode = scaleMode.name
 					engine?.setScaleMode(scaleMode)
 				}
 				b.action("Player", mode.label) {

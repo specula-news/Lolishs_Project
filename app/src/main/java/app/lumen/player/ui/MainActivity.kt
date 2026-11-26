@@ -30,6 +30,7 @@ import app.lumen.player.ui.pages.Page
 import app.lumen.player.ui.pages.SearchPage
 import app.lumen.player.ui.pages.SettingsPage
 import app.lumen.player.ui.pages.UpcomingPage
+import app.lumen.player.util.Formatters
 import app.lumen.player.util.Images
 import app.lumen.player.util.Ui
 import kotlinx.coroutines.launch
@@ -709,6 +710,14 @@ class MainActivity : BaseActivity() {
 
 	override fun dispatchKeyEvent(event: KeyEvent): Boolean {
 		val code = event.keyCode
+		if (welcome != null) {
+			// The welcome card has the remote: BACK closes it, the rest moves around inside it.
+			if (code == KeyEvent.KEYCODE_BACK) {
+				if (event.action == KeyEvent.ACTION_UP) closeWelcome()
+				return true
+			}
+			return super.dispatchKeyEvent(event)
+		}
 		if (event.action == KeyEvent.ACTION_DOWN && ::preview.isInitialized && preview.onKey(event)) return true
 		if (movingKey != null) {
 			// Moving a navigation item: UP / DOWN (LEFT / RIGHT on the top bar) move it, OK or BACK finish.
@@ -842,6 +851,152 @@ class MainActivity : BaseActivity() {
 	}
 
 	private val hideToast = Runnable { toastView.animate().alpha(0f).setDuration(250L).start() }
+
+	// Welcome card: new episodes of the shows you follow ----------------------------------------------
+
+	private var welcome: View? = null
+	private var shellFocusability = ViewGroup.FOCUS_BEFORE_DESCENDANTS
+
+	/** "Welcome back, Name" with the new episodes of shows you follow; OK plays one, BACK closes. */
+	fun showWelcome(episodes: List<JfItem>) {
+		if (episodes.isEmpty() || welcome != null || isFinishing) return
+		preview.stop()
+		val root = findViewById<LinearLayout>(R.id.shell).parent as FrameLayout
+		val gold = Ui.color(this, R.attr.lumenAccent)
+		val dim = FrameLayout(this).apply {
+			setBackgroundColor(0xB3000000.toInt())
+			isClickable = true
+			alpha = 0f
+		}
+		val card = LinearLayout(this).apply {
+			orientation = LinearLayout.VERTICAL
+			background = android.graphics.drawable.GradientDrawable().apply {
+				setColor(0xF2121212.toInt())
+				cornerRadius = Ui.dp(this@MainActivity, 22).toFloat()
+				setStroke(Ui.dp(this@MainActivity, 1), (gold and 0x00FFFFFF) or 0x99000000.toInt())
+			}
+			setPadding(Ui.dp(context, 30), Ui.dp(context, 26), Ui.dp(context, 30), Ui.dp(context, 24))
+			elevation = Ui.dp(context, 24).toFloat()
+			clipChildren = false
+		}
+		card.addView(TextView(this).apply {
+			text = "NEW FOR YOU"
+			letterSpacing = 0.2f
+			typeface = Ui.bold(context)
+			setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+			setTextColor(gold)
+		})
+		card.addView(TextView(this).apply {
+			text = prefs.userName?.let { "Welcome back, $it" } ?: "Welcome back"
+			typeface = Ui.display(context)
+			setTextSize(TypedValue.COMPLEX_UNIT_SP, 30f)
+			setTextColor(0xFFFFFFFF.toInt())
+			setPadding(0, Ui.dp(context, 4), 0, 0)
+		})
+		card.addView(TextView(this).apply {
+			text = if (episodes.size == 1) "A new episode of a show you follow is here." else "${episodes.size} new episodes of shows you follow are here."
+			setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+			setTextColor(Ui.color(this@MainActivity, R.attr.lumenText2))
+			setPadding(0, Ui.dp(context, 4), 0, Ui.dp(context, 16))
+		})
+		var firstRow: View? = null
+		episodes.take(4).forEach { episode ->
+			val row = LinearLayout(this).apply {
+				orientation = LinearLayout.HORIZONTAL
+				gravity = Gravity.CENTER_VERTICAL
+				background = ContextCompat.getDrawable(this@MainActivity, R.drawable.bg_row)
+				isFocusable = true
+				isClickable = true
+				setPadding(Ui.dp(context, 10), Ui.dp(context, 10), Ui.dp(context, 16), Ui.dp(context, 10))
+			}
+			val thumb = ImageView(this).apply {
+				scaleType = ImageView.ScaleType.CENTER_CROP
+				background = ContextCompat.getDrawable(this@MainActivity, R.drawable.bg_card_image)
+				clipToOutline = true
+			}
+			api.thumbUrl(session, episode, 400)?.let { Images.load(thumb, it) }
+			row.addView(thumb, LinearLayout.LayoutParams(Ui.dp(this, 150), Ui.dp(this, 84)))
+			val words = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+			words.addView(TextView(this).apply {
+				text = episode.seriesName ?: episode.name
+				typeface = Ui.bold(context)
+				maxLines = 1
+				ellipsize = android.text.TextUtils.TruncateAt.END
+				setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f)
+				setTextColor(0xFFFFFFFF.toInt())
+			})
+			words.addView(TextView(this).apply {
+				text = listOfNotNull(episode.episodeCode, episode.name.takeIf { episode.seriesName != null }).joinToString("  ·  ")
+				maxLines = 1
+				ellipsize = android.text.TextUtils.TruncateAt.END
+				setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+				setTextColor(Ui.color(this@MainActivity, R.attr.lumenText2))
+				setPadding(0, Ui.dp(context, 2), 0, 0)
+			})
+			words.addView(TextView(this).apply {
+				text = addedWhen(episode)
+				typeface = Ui.bold(context)
+				setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+				setTextColor(gold)
+				setPadding(0, Ui.dp(context, 4), 0, 0)
+			})
+			row.addView(words, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = Ui.dp(this@MainActivity, 16) })
+			row.addView(ImageView(this).apply {
+				setImageResource(R.drawable.ic_play)
+				imageTintList = ContextCompat.getColorStateList(this@MainActivity, R.color.nav_text)
+				isDuplicateParentStateEnabled = true
+			}, LinearLayout.LayoutParams(Ui.dp(this, 26), Ui.dp(this, 26)))
+			Ui.focusScale(row, 1.03f)
+			row.setOnClickListener {
+				closeWelcome()
+				PlayerActivity.play(this, episode.id)
+			}
+			card.addView(row, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+				bottomMargin = Ui.dp(this@MainActivity, 8)
+			})
+			if (firstRow == null) firstRow = row
+		}
+		val buttons = LinearLayout(this).apply {
+			orientation = LinearLayout.HORIZONTAL
+			gravity = Gravity.END
+			setPadding(0, Ui.dp(context, 10), 0, 0)
+		}
+		val later = Pills.create(buttons, "Later")
+		later.setOnClickListener { closeWelcome() }
+		card.addView(buttons, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+		dim.addView(card, FrameLayout.LayoutParams(Ui.dp(this, 640), ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER))
+		root.addView(dim, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+		// Keep the remote inside the card while it is open.
+		val shell = findViewById<ViewGroup>(R.id.shell)
+		shellFocusability = shell.descendantFocusability
+		shell.descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
+		welcome = dim
+		card.scaleX = 0.94f
+		card.scaleY = 0.94f
+		dim.animate().alpha(1f).setDuration(260L).start()
+		card.animate().scaleX(1f).scaleY(1f).setDuration(320L).setInterpolator(android.view.animation.DecelerateInterpolator(1.6f)).start()
+		(firstRow ?: later).requestFocus()
+	}
+
+	private fun closeWelcome(): Boolean {
+		val view = welcome ?: return false
+		welcome = null
+		findViewById<ViewGroup>(R.id.shell).descendantFocusability = shellFocusability
+		view.animate().alpha(0f).setDuration(200L).withEndAction { (view.parent as? ViewGroup)?.removeView(view) }.start()
+		val last = lastContentFocus?.get()
+		if (last == null || !last.isAttachedToWindow || !last.isShown || !last.requestFocus()) page?.focusFirst()
+		return true
+	}
+
+	private fun addedWhen(item: JfItem): String {
+		val added = Formatters.epochMs(item.dateCreated) ?: return "New"
+		val days = ((System.currentTimeMillis() - added) / 86_400_000L).toInt()
+		return when {
+			days <= 0 -> "Added today"
+			days == 1 -> "Added yesterday"
+			else -> "Added $days days ago"
+		}
+	}
 
 	// Small download window (Li'Server) ---------------------------------------------------------------
 

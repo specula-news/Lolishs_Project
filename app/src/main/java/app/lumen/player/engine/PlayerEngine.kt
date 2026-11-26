@@ -5,9 +5,22 @@ import app.lumen.player.ExternalSubtitle
 import app.lumen.player.PlayRequest
 
 enum class ScaleMode(val label: String) {
+	/** Fills the screen from side to side (never stretched); narrow pictures like 4:3 keep their shape. */
+	AUTO("Auto (fill the sides)"),
 	FIT("Fit"),
 	ZOOM("Zoom to fill"),
 	STRETCH("Stretch"),
+	;
+
+	companion object {
+		/**
+		 * Auto: a picture between 3:2 and the screen's shape (1.66:1, 16:10, slightly narrow 16:9 files…)
+		 * is zoomed until it reaches both sides, cutting a thin strip off the top and bottom instead of
+		 * leaving black bars on the sides. Wider films already fill the sides; 4:3 and 3:2 stay as they are.
+		 */
+		fun autoFills(videoAspect: Float, screenAspect: Float): Boolean =
+			videoAspect >= 1.55f && videoAspect < screenAspect - 0.01f
+	}
 }
 
 data class TrackOption(
