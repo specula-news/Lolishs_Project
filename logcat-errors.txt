@@ -1,0 +1,67 @@
+--------- beginning of main
+11-26 17:42:04.956  2458  2458 E cr_LocalGrpcAuthService: Calling package not allowed.
+11-26 17:42:04.962  1132  1132 E LocalGrpcAuthClientImpl: invalid message
+11-26 17:42:04.962  1132  1132 E cr_AssistantManagerInternal$AssistantLocalGrpcAuthCallback: the port or token cannot be retrieved from local grpc client
+11-26 17:42:06.285  2458  2458 E cr_GrpcIpcUidPolicy: Unauthorized access attempt from com.google.android.katniss
+11-26 17:42:06.285  2458  2458 E cr_GrpcIpcSocketService: Calling package not allowed.
+11-26 17:42:06.285  1132  1132 E GrpcIpcSocketClientImpl: invalid message
+11-26 17:42:06.285  1132  4625 E native  : E0000 00:00:1795714926.285901    4625 grpc_ipc_socket_client.cc:77] Error for usonia-ipc-socket
+11-26 17:42:06.285  1132  4625 E native  : E0000 00:00:1795714926.285972    4625 android_grpc_builder.cc:149] Could not get a socket for binder:com.google.android.apps.mediashell:usonia-ipc-socket
+11-26 17:42:06.285  1132  4625 E native  : E0000 00:00:1795714926.285989    4625 grpc_manager_impl.cc:634] GRPC[uri=]: Grpc cannot connect to host {UNDEFINED}
+11-26 17:42:06.286  1132  4625 E native  : E0000 00:00:1795714926.286000    4625 grpc_manager_impl.cc:782] GRPC[uri=]: status=[error_code=RESOURCE_EXHAUSTED, error_message=Cannot create a channel. Call to binder:com.google.android.apps.mediashell:usonia-ipc-socket ignored.]
+11-26 17:42:06.286  1132  4625 E native  : E0000 00:00:1795714926.286016    4625 grpc_manager_impl.cc:782] GRPC[uri=]: status=[error_code=RESOURCE_EXHAUSTED, error_message=Cannot create a channel. Call to binder:com.google.android.apps.mediashell:usonia-ipc-socket ignored.]
+11-26 17:42:06.286  1132  4625 E native  : E0000 00:00:1795714926.286030    4625 grpc_manager_impl.cc:782] GRPC[uri=]: status=[error_code=RESOURCE_EXHAUSTED, error_message=Cannot create a channel. Call to binder:com.google.android.apps.mediashell:usonia-ipc-socket ignored.]
+11-26 17:42:06.286  1132  4625 E native  : E0000 00:00:1795714926.286044    4625 grpc_manager_impl.cc:782] GRPC[uri=]: status=[error_code=RESOURCE_EXHAUSTED, error_message=Cannot create a channel. Call to binder:com.google.android.apps.mediashell:usonia-ipc-socket ignored.]
+11-26 17:42:06.286  1132  4625 E native  : E0000 00:00:1795714926.286056    4625 grpc_manager_impl.cc:782] GRPC[uri=]: status=[error_code=RESOURCE_EXHAUSTED, error_message=Cannot create a channel. Call to binder:com.google.android.apps.mediashell:usonia-ipc-socket ignored.]
+11-26 17:42:06.286  1132  4625 E native  : E0000 00:00:1795714926.286069    4625 grpc_manager_impl.cc:782] GRPC[uri=]: status=[error_code=RESOURCE_EXHAUSTED, error_message=Cannot create a channel. Call to binder:com.google.android.apps.mediashell:usonia-ipc-socket ignored.]
+11-26 17:42:06.286  1132  4625 E native  : E0000 00:00:1795714926.286081    4625 grpc_manager_impl.cc:782] GRPC[uri=]: status=[error_code=RESOURCE_EXHAUSTED, error_message=Cannot create a channel. Call to binder:com.google.android.apps.mediashell:usonia-ipc-socket ignored.]
+11-26 17:42:06.286  1132  4625 E native  : E0000 00:00:1795714926.286086    4625 ipc_common.h:486] Error in fetching local device info: [error_code=RESOURCE_EXHAUSTED, error_message=Cannot create a channel. Call to binder:com.google.android.apps.mediashell:usonia-ipc-socket ignored.]
+11-26 17:42:06.286  1132  4625 E native  : E0000 00:00:1795714926.286094    4625 grpc_manager_impl.cc:782] GRPC[uri=]: status=[error_code=RESOURCE_EXHAUSTED, error_message=Cannot create a channel. Call to binder:com.google.android.apps.mediashell:usonia-ipc-socket ignored.]
+11-26 17:42:06.286  1132  4625 E native  : E0000 00:00:1795714926.286107    4625 grpc_manager_impl.cc:782] GRPC[uri=]: status=[error_code=RESOURCE_EXHAUSTED, error_message=Cannot create a channel. Call to binder:com.google.android.apps.mediashell:usonia-ipc-socket ignored.]
+11-26 17:42:06.286  1132  4625 E native  : E0000 00:00:1795714926.286112    4625 directory_service_with_grpc_ipc.cc:277] IPC for DirectoryService.UpdateStateObservers closed: status=[error_code=RESOURCE_EXHAUSTED, error_message=Cannot create a channel. Call to binder:com.google.android.apps.mediashell:usonia-ipc-socket ignored.]
+11-26 17:42:06.286  1132  4625 E native  : E0000 00:00:1795714926.286120    4625 grpc_manager_impl.cc:782] GRPC[uri=]: status=[error_code=RESOURCE_EXHAUSTED, error_message=Cannot create a channel. Call to binder:com.google.android.apps.mediashell:usonia-ipc-socket ignored.]
+11-26 17:42:06.286  1132  4625 E native  : E0000 00:00:1795714926.286125    4625 directory_service_with_grpc_ipc.cc:378] IPC for DirectoryService.UpdateMessageObservers closed: status=[error_code=RESOURCE_EXHAUSTED, error_message=Cannot create a channel. Call to binder:com.google.android.apps.mediashell:usonia-ipc-socket ignored.]
+11-26 17:42:06.286  1132  4625 E native  : E0000 00:00:1795714926.286132    4625 grpc_manager_impl.cc:782] GRPC[uri=]: status=[error_code=RESOURCE_EXHAUSTED, error_message=Cannot create a channel. Call to binder:com.google.android.apps.mediashell:usonia-ipc-socket ignored.]
+--------- beginning of system
+11-26 17:42:06.802   477  1123 E TaskPersister: File error accessing recents directory (directory doesn't exist?).
+11-26 17:42:09.682   156   156 E SELinux : avc:  denied  { find } for interface=android.hardware.memtrack::IMemtrack sid=u:r:gmscore_app:s0:c512,c768 pid=3614 scontext=u:r:gmscore_app:s0:c512,c768 tcontext=u:object_r:hal_memtrack_hwservice:s0 tclass=hwservice_manager permissive=0
+11-26 17:42:09.682  3614  6102 E memtrack: Couldn't load memtrack module
+11-26 17:42:14.270  1350  5221 E ActivityThread: Failed to find provider info for tvlauncher.mic
+11-26 17:42:18.355   477  1123 E TaskPersister: File error accessing recents directory (directory doesn't exist?).
+11-26 17:42:18.690   455   455 E netmgr  : qemu_pipe_open_ns:62: Could not connect to the 'pipe:qemud:network' service: Invalid argument
+11-26 17:42:18.690   455   455 E netmgr  : Failed to open QEMU pipe 'qemud:network': Invalid argument
+11-26 17:42:18.814   464   464 E wifi_forwarder: qemu_pipe_open_ns:62: Could not connect to the 'pipe:qemud:wififorward' service: Invalid argument
+11-26 17:42:18.814   464   464 E wifi_forwarder: RemoteConnection failed to initialize: RemoteConnection failed to open pipe
+11-26 17:42:28.046  6179  6179 E libc    : Access denied finding property "persist.device_config.runtime_native_boot.profilebootclasspath"
+11-26 17:42:28.046  6179  6179 E libc    : Access denied finding property "persist.device_config.runtime_native_boot.enable_apex_image"
+11-26 17:42:28.046  6179  6179 E libc    : Access denied finding property "persist.device_config.runtime_native_boot.disable_lock_profiling"
+11-26 17:42:28.046  6179  6179 E libc    : Access denied finding property "persist.device_config.runtime_native_boot.enable_generational_cc"
+11-26 17:42:31.156   336   336 E SurfaceFlinger: Attempt to set frame rate on an unrecognized IGraphicBufferProducer
+11-26 17:42:31.184  6131  6193 E ExoPlayerImplInternal: Playback error
+11-26 17:42:31.184  6131  6193 E ExoPlayerImplInternal:   androidx.media3.exoplayer.ExoPlaybackException: Source error
+11-26 17:42:31.184  6131  6193 E ExoPlayerImplInternal:       at androidx.media3.exoplayer.ExoPlayerImplInternal.handleIoException(ExoPlayerImplInternal.java:1021)
+11-26 17:42:31.184  6131  6193 E ExoPlayerImplInternal:       at androidx.media3.exoplayer.ExoPlayerImplInternal.handleMessage(ExoPlayerImplInternal.java:991)
+11-26 17:42:31.184  6131  6193 E ExoPlayerImplInternal:       at android.os.Handler.dispatchMessage(Handler.java:102)
+11-26 17:42:31.184  6131  6193 E ExoPlayerImplInternal:       at android.os.Looper.loop(Looper.java:223)
+11-26 17:42:31.184  6131  6193 E ExoPlayerImplInternal:       at android.os.HandlerThread.run(HandlerThread.java:67)
+11-26 17:42:31.184  6131  6193 E ExoPlayerImplInternal:   Caused by: androidx.media3.exoplayer.source.UnrecognizedInputFormatException: None of the available extractors (FlvExtractor, FlacExtractor, WavExtractor, FragmentedMp4Extractor, Mp4Extractor, AmrExtractor, PsExtractor, OggExtractor, TsExtractor, MatroskaExtractor, AdtsExtractor, Ac3Extractor, Ac4Extractor, Mp3Extractor, AviExtractor, JpegExtractor, PngExtractor, WebpExtractor, BmpExtractor, HeifExtractor, AvifExtractor) could read the stream. {contentIsMalformed=false, dataType=1}
+11-26 17:42:31.184  6131  6193 E ExoPlayerImplInternal:   sniff failures: [NoDeclaredBrand, NoDeclaredBrand]
+11-26 17:42:31.184  6131  6193 E ExoPlayerImplInternal:       at androidx.media3.exoplayer.source.BundledExtractorsAdapter.init(BundledExtractorsAdapter.java:110)
+11-26 17:42:31.184  6131  6193 E ExoPlayerImplInternal:       at androidx.media3.exoplayer.source.ProgressiveMediaPeriod$ExtractingLoadable.load(ProgressiveMediaPeriod.java:1315)
+11-26 17:42:31.184  6131  6193 E ExoPlayerImplInternal:       at androidx.media3.exoplayer.upstream.Loader$LoadTask.run(Loader.java:453)
+11-26 17:42:31.184  6131  6193 E ExoPlayerImplInternal:       at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1167)
+11-26 17:42:31.184  6131  6193 E ExoPlayerImplInternal:       at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:641)
+11-26 17:42:31.184  6131  6193 E ExoPlayerImplInternal:       at java.lang.Thread.run(Thread.java:923)
+11-26 17:42:33.735  1350  5221 E ActivityThread: Failed to find provider info for tvlauncher.mic
+11-26 17:42:37.782   477  1123 E TaskPersister: File error accessing recents directory (directory doesn't exist?).
+11-26 17:42:42.993  6253  6253 E libc    : Access denied finding property "persist.device_config.runtime_native_boot.profilebootclasspath"
+11-26 17:42:42.993  6253  6253 E libc    : Access denied finding property "persist.device_config.runtime_native_boot.enable_apex_image"
+11-26 17:42:42.993  6253  6253 E libc    : Access denied finding property "persist.device_config.runtime_native_boot.disable_lock_profiling"
+11-26 17:42:42.993  6253  6253 E libc    : Access denied finding property "persist.device_config.runtime_native_boot.enable_generational_cc"
+11-26 17:42:43.369  2458  2548 E cr_ClientAuthCredsWidevine: Server returned HTTP error code 401
+11-26 17:42:43.369  2458  2548 E cr_ClientAuthCredsWidevine: attemptCredsProvisioning. Received null response.
+11-26 17:42:44.191  4283  4357 E Finsky  : [329] [Counters] attempted to use a non-positive increment for: 4752
+11-26 17:42:44.200  4283  4359 E Finsky  : [331] [Counters] attempted to use a non-positive increment for: 4753
+11-26 17:42:44.236  4283  4355 E Finsky  : [327] [Counters] attempted to use a non-positive increment for: 4751
+11-26 17:42:48.640  1350  5221 E ActivityThread: Failed to find provider info for tvlauncher.mic
+11-26 17:42:52.702   477  1123 E TaskPersister: File error accessing recents directory (directory doesn't exist?).
