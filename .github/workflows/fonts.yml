@@ -1,0 +1,36 @@
+name: Fonts
+
+# Makes the extra fonts for Settings > Appearance > Font (tools/fonts/make_fonts.py): small static
+# regular and bold files of ten popular Google Fonts, saved to the "fonts" branch. Start it from the
+# Actions tab; the files are then copied into app/src/main/res/font.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fonts:
+    name: Make fonts
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Make the font files
+        run: |
+          python3 -m venv /tmp/fonttools
+          /tmp/fonttools/bin/pip install --quiet fonttools
+          /tmp/fonttools/bin/python tools/fonts/make_fonts.py fonts-out
+          ls -la fonts-out
+      - name: Save them to the "fonts" branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd fonts-out
+          git init -q -b fonts
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Fonts for ${GITHUB_SHA::7}"
+          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" fonts
