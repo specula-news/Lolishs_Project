@@ -48,7 +48,9 @@ open class LibraryPage(
 
 	private val root = LinearLayout(host).apply {
 		orientation = LinearLayout.VERTICAL
-		setPadding(Ui.dp(host, 26), Ui.dp(host, 24), Ui.dp(host, 24), 0)
+		setPadding(Ui.dp(host, 26), Ui.dp(host, 10), Ui.dp(host, 24), 0)
+		// The slim top row slides away smoothly when you scroll down.
+		layoutTransition = android.animation.LayoutTransition().apply { setDuration(180L) }
 	}
 	override val view: View = root
 
@@ -56,8 +58,14 @@ open class LibraryPage(
 	private val toolbar = LinearLayout(host).apply {
 		orientation = LinearLayout.HORIZONTAL
 		gravity = Gravity.CENTER_VERTICAL
-		setPadding(0, Ui.dp(host, 16), 0, Ui.dp(host, 8))
 	}
+	/** One slim row: Sort and Show on the left, the library's name and count small on the right. */
+	private val topRow = LinearLayout(host).apply {
+		orientation = LinearLayout.HORIZONTAL
+		gravity = Gravity.CENTER_VERTICAL
+		setPadding(0, Ui.dp(host, 4), 0, Ui.dp(host, 8))
+	}
+	private var topRowShown = true
 	private val grid = TvRecyclerView(host)
 	private val emptyView = TextView(host)
 	private val adapter: CardGridAdapter
@@ -81,42 +89,42 @@ open class LibraryPage(
 	}
 
 	init {
-		val header = LinearLayout(host).apply {
-			orientation = LinearLayout.HORIZONTAL
-			gravity = Gravity.BOTTOM
+		root.addView(topRow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+		topRow.addView(toolbar, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+		// Name and count: small, on the right (clear of the clock in the corner).
+		val name = TextView(host).apply {
+			this.text = titleOverride ?: library?.name ?: "Library"
+			typeface = Ui.bold(host)
+			maxLines = 1
+			setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+			setTextColor(Ui.color(host, R.attr.lumenText2))
 		}
-		header.addView(TextView(host).apply {
-			text = titleOverride ?: library?.name ?: "Library"
-			typeface = Ui.display(host)
-			setTextSize(TypedValue.COMPLEX_UNIT_SP, 40f)
-			setTextColor(Ui.color(host, R.attr.lumenText))
-		})
 		countView.apply {
-			typeface = Ui.display(host)
-			setTextSize(TypedValue.COMPLEX_UNIT_SP, 30f)
-			setTextColor(Ui.color(host, R.attr.lumenText3))
-			setPadding(Ui.dp(host, 14), 0, 0, Ui.dp(host, 3))
+			typeface = Ui.bold(host)
+			setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+			setTextColor(Ui.color(host, R.attr.lumenAccent))
+			setPadding(Ui.dp(host, 8), 0, 0, 0)
 		}
-		header.addView(countView)
-		root.addView(header)
+		topRow.addView(name)
+		topRow.addView(countView)
+		if (host.clockOverlay) topRow.setPadding(0, Ui.dp(host, 4), Ui.dp(host, 110), Ui.dp(host, 8))
 
 		if (fixedFilters.isEmpty()) {
-			val sortPill = Pills.create(toolbar, "Sort: ${sort.label}", R.drawable.ic_sort)
+			val sortPill = Pills.compact(Pills.create(toolbar, "Sort: ${sort.label}", R.drawable.ic_sort))
 			sortPill.setOnClickListener {
 				sort = Sort.entries[(sort.ordinal + 1) % Sort.entries.size]
 				host.prefs.setLibrarySort(memoryKey, sort.name)
 				sortPill.text = "Sort: ${sort.label}"
 				reload()
 			}
-			val filterPill = Pills.create(toolbar, "Show: ${filter.label}", R.drawable.ic_filter)
-			(filterPill.layoutParams as ViewGroup.MarginLayoutParams).marginStart = Ui.dp(host, 12)
+			val filterPill = Pills.compact(Pills.create(toolbar, "Show: ${filter.label}", R.drawable.ic_filter))
+			(filterPill.layoutParams as ViewGroup.MarginLayoutParams).marginStart = Ui.dp(host, 10)
 			filterPill.setOnClickListener {
 				filter = Filter.entries[(filter.ordinal + 1) % Filter.entries.size]
 				host.prefs.setLibraryFilter(memoryKey, filter.name)
 				filterPill.text = "Show: ${filter.label}"
 				reload()
 			}
-			root.addView(toolbar)
 		}
 
 		emptyView.apply {
@@ -159,6 +167,21 @@ open class LibraryPage(
 			if (side == 0) body.addView(buildLetterRail(), 0, params) else body.addView(buildLetterRail(), params)
 		}
 		root.addView(body, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+		// Scrolling down: the posters get the whole page (only the menu stays). Back at the top: the row returns.
+		grid.addOnScrollListener(object : androidx.recyclerview.widget.RecyclerView.OnScrollListener() {
+			override fun onScrolled(recyclerView: androidx.recyclerview.widget.RecyclerView, dx: Int, dy: Int) {
+				val offset = recyclerView.computeVerticalScrollOffset()
+				when {
+					offset > Ui.dp(host, 40) && topRowShown && topRow.findFocus() == null -> showTopRow(false)
+					offset == 0 && !topRowShown -> showTopRow(true)
+				}
+			}
+		})
+	}
+
+	private fun showTopRow(show: Boolean) {
+		topRowShown = show
+		topRow.visibility = if (show) View.VISIBLE else View.GONE
 	}
 
 	/** A slim A–Z rail: OK on a letter shows only titles starting with it (with the current sort and Show). */
@@ -235,6 +258,7 @@ open class LibraryPage(
 	}
 
 	override fun focusFirst(): Boolean {
+		if (!topRowShown && grid.getChildAt(0) != null && grid.computeVerticalScrollOffset() == 0) showTopRow(true)
 		if (toolbar.childCount > 0 && toolbar.getChildAt(0).requestFocus()) return true
 		return grid.getChildAt(0)?.requestFocus() == true
 	}
@@ -266,6 +290,7 @@ open class LibraryPage(
 				emptyView.visibility = if (it.items.isEmpty()) View.VISIBLE else View.GONE
 				emptyView.text = if (letter != null) "No titles starting with ${if (letter == "#") "a number" else letter} here." else "Nothing to show with these filters."
 				grid.scrollToPosition(0)
+				if (!topRowShown) showTopRow(true)
 			}.onFailure {
 				emptyView.visibility = View.VISIBLE
 				emptyView.text = "Couldn’t load the library: ${it.message}"
