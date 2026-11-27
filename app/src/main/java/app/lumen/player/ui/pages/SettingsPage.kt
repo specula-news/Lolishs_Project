@@ -175,7 +175,7 @@ class SettingsPage(host: MainActivity, private val scrollToAccount: Boolean = fa
 			target.post { target.requestFocus() }
 		}
 		b.toggle("Clock", "Top right corner of the menus (not while watching)", isOn = { prefs.showClock }) { appearance { prefs.showClock = it } }
-		b.stepper("Previews", "Any focused movie or show plays full screen after 3 seconds; \"then play\" carries on in the player after 20", value = { PREVIEWS[prefs.previewMode.coerceIn(0, 2)] }) { d, _ ->
+		b.stepper("Previews", "Stay on a movie or show: a little window tells what it is about, after 8 seconds it plays in a big window; \"then play\" carries on in the player after 20", value = { PREVIEWS[prefs.previewMode.coerceIn(0, 2)] }) { d, _ ->
 			prefs.previewMode = (prefs.previewMode + d + 3) % 3
 		}
 		b.toggle("Preview sound", isOn = { prefs.previewSound }) { prefs.previewSound = it }
@@ -187,6 +187,9 @@ class SettingsPage(host: MainActivity, private val scrollToAccount: Boolean = fa
 		}
 		b.stepper("Wide tile size", "Wide cards: Home rows, Continue watching, episodes · shows when you leave Settings", value = { SIZES5[prefs.thumbSize.coerceIn(0, 4)] }) { d, _ ->
 			appearance { prefs.thumbSize = (prefs.thumbSize + d).coerceIn(0, 4) }
+		}
+		b.stepper("A–Z letters", "The letter column in Movies, Shows and other libraries", value = { RAILS[prefs.letterRail.coerceIn(0, 2)] }) { d, _ ->
+			appearance { prefs.letterRail = (prefs.letterRail + d + 3) % 3 }
 		}
 		b.stepper("Selected card zoom", "How much the card you're on grows, so it's easy to see", value = { ZOOMS[prefs.cardZoom.coerceIn(0, 2)] }) { d, _ ->
 			appearance { prefs.cardZoom = (prefs.cardZoom + d).coerceIn(0, 2) }
@@ -360,6 +363,7 @@ class SettingsPage(host: MainActivity, private val scrollToAccount: Boolean = fa
 		val ICON_SIZES = listOf("Extra small", "Small", "Medium", "Large")
 		val SIZES5 = listOf("Small", "Medium", "Large", "Extra large", "Huge")
 		val ZOOMS = listOf("A little", "Big", "Bigger")
+		val RAILS = listOf("Left", "Right", "Off")
 		val TEXT_SCALES = listOf(85, 90, 100, 110, 120, 130)
 		val SIDEBAR = listOf("Always expanded", "Icons only", "Expand when focused")
 		val STUTTER = listOf("Off", "Normal", "Sensitive")

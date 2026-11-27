@@ -141,19 +141,22 @@ open class LibraryPage(
 		grid.adapter = adapter
 		grid.setPadding(0, Ui.dp(host, 6), 0, Ui.dp(host, 60))
 		grid.layoutManager = GridLayoutManager(host, 6)
-		// The grid, with the A–Z rail on its right (RIGHT from the last column goes to it, LEFT comes back).
+		// The grid, with the A–Z rail beside it (LEFT / RIGHT from the edge column goes to it and back).
 		val body = LinearLayout(host).apply {
 			orientation = LinearLayout.HORIZONTAL
 			clipChildren = false
 			clipToPadding = false
 		}
 		body.addView(grid, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f))
-		if (fixedFilters.isEmpty()) {
-			body.addView(buildLetterRail(), LinearLayout.LayoutParams(Ui.dp(host, 48), ViewGroup.LayoutParams.MATCH_PARENT).apply {
-				marginStart = Ui.dp(host, 8)
+		// Settings › Appearance › A–Z letters: on the left (default), on the right, or off.
+		val side = host.prefs.letterRail
+		if (fixedFilters.isEmpty() && side != 2) {
+			val params = LinearLayout.LayoutParams(Ui.dp(host, 48), ViewGroup.LayoutParams.MATCH_PARENT).apply {
+				if (side == 0) marginEnd = Ui.dp(host, 12) else marginStart = Ui.dp(host, 8)
 				topMargin = Ui.dp(host, 4)
 				bottomMargin = Ui.dp(host, 24)
-			})
+			}
+			if (side == 0) body.addView(buildLetterRail(), 0, params) else body.addView(buildLetterRail(), params)
 		}
 		root.addView(body, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
 	}

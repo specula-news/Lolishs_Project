@@ -29,7 +29,7 @@ import kotlinx.coroutines.launch
 import java.util.UUID
 
 /**
- * Streaming-app style previews. When a title stays focused for 3 seconds it starts playing from the
+ * Streaming-app style previews. When a title stays focused for 8 seconds it starts playing from the
  * beginning: inside the Home banner, or for any card full screen behind the see-through menu, with its
  * name and description at the bottom. After 20 seconds it carries on in the real player (from where
  * the preview is). Any button stops it.
@@ -130,6 +130,115 @@ class PreviewController(private val host: MainActivity, private val root: FrameL
 
 	private val mode: Int get() = host.prefs.previewMode
 
+	// Little info window next to the focused card: what the film or show is about ---------------------
+
+	private var infoItem: JfItem? = null
+	private var infoAnchor: View? = null
+	private val infoKind = text(11f, bold = true).apply {
+		letterSpacing = 0.18f
+		setTextColor(Ui.color(host, R.attr.lumenAccent))
+	}
+	private val infoTitle = TextView(host).apply {
+		typeface = Ui.bold(host)
+		maxLines = 2
+		ellipsize = android.text.TextUtils.TruncateAt.END
+		setTextColor(0xFFFFFFFF.toInt())
+		setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
+		setPadding(0, Ui.dp(host, 3), 0, 0)
+	}
+	private val infoFacts = text(13f).apply {
+		maxLines = 2
+		setPadding(0, Ui.dp(host, 4), 0, 0)
+	}
+	private val infoOverview = text(14f).apply {
+		maxLines = 6
+		ellipsize = android.text.TextUtils.TruncateAt.END
+		setLineSpacing(0f, 1.18f)
+		setTextColor(0xE6FFFFFF.toInt())
+		setPadding(0, Ui.dp(host, 10), 0, 0)
+	}
+	private val info = LinearLayout(host).apply {
+		orientation = LinearLayout.VERTICAL
+		background = android.graphics.drawable.GradientDrawable().apply {
+			setColor(0xF2141317.toInt())
+			cornerRadius = Ui.dp(host, 16).toFloat()
+			setStroke(Ui.dp(host, 1), (Ui.color(host, R.attr.lumenAccent) and 0x00FFFFFF) or 0x66000000)
+		}
+		setPadding(Ui.dp(host, 18), Ui.dp(host, 14), Ui.dp(host, 18), Ui.dp(host, 16))
+		elevation = Ui.dp(host, 20).toFloat()
+		visibility = View.GONE
+		isFocusable = false
+		addView(infoKind)
+		addView(infoTitle)
+		addView(infoFacts)
+		addView(infoOverview)
+	}
+
+	init {
+		// On top of everything (the menu included), so it is never cut off.
+		root.addView(info, FrameLayout.LayoutParams(Ui.dp(host, INFO_WIDTH_DP), ViewGroup.LayoutParams.WRAP_CONTENT))
+	}
+
+	private val showInfo = Runnable {
+		val shown = infoItem ?: return@Runnable
+		val anchor = infoAnchor ?: return@Runnable
+		if (!anchor.isAttachedToWindow || !anchor.isShown || panelShown || !holdsFocus(anchor)) return@Runnable
+		infoKind.text = FeatureText.kind(shown)
+		infoTitle.text = FeatureText.title(shown)
+		infoFacts.text = FeatureText.facts(host, shown)
+		infoOverview.text = shown.overview.orEmpty()
+		infoOverview.visibility = if (shown.overview.isNullOrBlank()) View.GONE else View.VISIBLE
+		val card = Rect()
+		val screen = Rect()
+		anchor.getGlobalVisibleRect(card)
+		root.getGlobalVisibleRect(screen)
+		val w = Ui.dp(host, INFO_WIDTH_DP)
+		info.measure(
+			View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY),
+			View.MeasureSpec.makeMeasureSpec(screen.height(), View.MeasureSpec.AT_MOST),
+		)
+		val h = info.measuredHeight
+		val gap = Ui.dp(host, 20)
+		val margin = Ui.dp(host, 16)
+		val left = card.left - screen.left
+		val right = card.right - screen.left
+		val top = card.top - screen.top
+		val bottom = card.bottom - screen.top
+		var x: Int
+		var y: Int
+		when {
+			// Beside the card (right side first), lined up with its top.
+			right + gap + w <= screen.width() - margin -> { x = right + gap; y = top }
+			left - gap - w >= margin -> { x = left - gap - w; y = top }
+			// No room beside it (a very wide card): under it, or over it.
+			else -> {
+				x = left.coerceIn(margin, (screen.width() - w - margin).coerceAtLeast(margin))
+				y = if (bottom + gap + h <= screen.height() - margin) bottom + gap else top - gap - h
+			}
+		}
+		y = y.coerceIn(margin, (screen.height() - h - margin).coerceAtLeast(margin))
+		info.layoutParams = (info.layoutParams as FrameLayout.LayoutParams).apply {
+			width = w
+			leftMargin = x
+			topMargin = y
+		}
+		info.animate().cancel()
+		info.alpha = 0f
+		info.translationY = Ui.dp(host, 6).toFloat()
+		info.visibility = View.VISIBLE
+		info.animate().alpha(1f).translationY(0f).setDuration(220L).start()
+	}
+
+	private fun hideInfo() {
+		handler.removeCallbacks(showInfo)
+		infoItem = null
+		infoAnchor = null
+		if (info.visibility == View.VISIBLE) {
+			info.animate().cancel()
+			info.animate().alpha(0f).setDuration(140L).withEndAction { if (infoItem == null) info.visibility = View.GONE }.start()
+		}
+	}
+
 	/**
 	 * [item] got focus. [inline]: [anchor] is the banner and the video goes into it at [index];
 	 * otherwise [anchor] is a card and the video shows in the big preview window.
@@ -137,6 +246,12 @@ class PreviewController(private val host: MainActivity, private val root: FrameL
 	fun focus(item: JfItem, anchor: FrameLayout, index: Int, inline: Boolean) {
 		if (state != State.IDLE && this.item?.id == item.id && this.anchor === anchor) return
 		stop()
+		if (!inline) {
+			// What it's about, in a little window next to the card (with or without previews).
+			infoItem = item
+			infoAnchor = anchor
+			handler.postDelayed(showInfo, INFO_DELAY_MS)
+		}
 		if (mode == 0 || item.type !in PREVIEWABLE) return
 		this.item = item
 		this.anchor = anchor
@@ -148,6 +263,7 @@ class PreviewController(private val host: MainActivity, private val root: FrameL
 
 	/** Focus left [anchor]: stop if it is the one being previewed. */
 	fun leave(anchor: FrameLayout) {
+		if (infoAnchor === anchor) hideInfo()
 		if (this.anchor === anchor) stop()
 	}
 
@@ -159,7 +275,7 @@ class PreviewController(private val host: MainActivity, private val root: FrameL
 		when (state) {
 			State.IDLE -> return false
 			State.WAITING -> {
-				// Still waiting: count the 3 seconds again from this press.
+				// Still waiting: count the seconds again from this press.
 				handler.removeCallbacks(begin)
 				handler.postDelayed(begin, START_DELAY_MS)
 				return false
@@ -181,6 +297,7 @@ class PreviewController(private val host: MainActivity, private val root: FrameL
 	}
 
 	fun stop() {
+		hideInfo()
 		handler.removeCallbacks(begin)
 		handler.removeCallbacks(handOff)
 		handler.removeCallbacks(tick)
@@ -264,6 +381,7 @@ class PreviewController(private val host: MainActivity, private val root: FrameL
 				Gravity.TOP or Gravity.END).apply { setMargins(0, Ui.dp(host, 18), Ui.dp(host, 20), 0) })
 			box.post { fitInline(view, box) }
 		} else {
+			hideInfo()
 			showPanel(shown)
 			panelVideo.addView(view, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
 			videoBox.addView(countdown, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -404,7 +522,10 @@ class PreviewController(private val host: MainActivity, private val root: FrameL
 	}
 
 	private companion object {
-		const val START_DELAY_MS = 3_000L
+		/** Long enough to read the little info window first. */
+		const val START_DELAY_MS = 8_000L
+		const val INFO_DELAY_MS = 450L
+		const val INFO_WIDTH_DP = 340
 		const val HAND_OFF_MS = 20_000L
 		const val COUNTDOWN_S = 5
 		const val VOLUME = 0.7f

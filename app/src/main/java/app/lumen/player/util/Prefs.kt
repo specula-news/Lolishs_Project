@@ -137,6 +137,11 @@ class Prefs(context: Context) {
 		get() = int("ui_thumb_size", 1)
 		set(value) = putInt("ui_thumb_size", value)
 
+	/** The A–Z rail in libraries: 0 = left (default), 1 = right, 2 = off. */
+	var letterRail: Int
+		get() = int("ui_letter_rail", 0)
+		set(value) = putInt("ui_letter_rail", value)
+
 	/** How much the selected card grows: 0 = a little, 1 = big (default), 2 = bigger. */
 	var cardZoom: Int
 		get() = int("ui_card_zoom", 1)
