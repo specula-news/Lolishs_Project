@@ -31,7 +31,7 @@
 			android:clipToPadding="false"
 			android:orientation="vertical"
 			android:paddingStart="64dp"
-			android:paddingTop="52dp"
+			android:paddingTop="40dp"
 			android:paddingBottom="64dp">
 
 			<ImageView
@@ -52,7 +52,7 @@
 				android:maxLines="2"
 				android:maxWidth="900dp"
 				android:textColor="?attr/lumenText"
-				android:textSize="46sp" />
+				android:textSize="42sp" />
 
 			<TextView
 				android:id="@+id/subtitle"
@@ -88,8 +88,8 @@
 				android:layout_marginTop="16dp"
 				android:ellipsize="end"
 				android:lineSpacingMultiplier="1.25"
-				android:maxLines="5"
-				android:maxWidth="820dp"
+				android:maxLines="3"
+				android:maxWidth="760dp"
 				android:textColor="?attr/lumenText"
 				android:textSize="17sp" />
 

@@ -109,4 +109,7 @@ dependencies {
 
 	// Fallback engine: libVLC (AVI/WMV/RMVB/odd codecs)
 	implementation("org.videolan.android:libvlc-all:3.7.6")
+
+	// QR codes (add a server by typing on the phone)
+	implementation("com.google.zxing:core:3.5.3")
 }

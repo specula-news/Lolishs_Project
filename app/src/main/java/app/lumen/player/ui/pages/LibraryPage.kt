@@ -67,6 +67,9 @@ open class LibraryPage(
 	private var filter = host.prefs.libraryFilter(memoryKey)?.let { name -> Filter.entries.firstOrNull { it.name == name } } ?: Filter.ALL
 	private var loadJob: Job? = null
 	private var loadingMore = false
+	/** The A–Z rail: null = everything, "#" = numbers and signs, else a letter. Works together with sort and Show. */
+	private var letter: String? = null
+	private val letterViews = mutableMapOf<String?, TextView>()
 
 	private val types: List<String> = fixedTypes ?: when (library?.collectionType) {
 		"movies" -> listOf("Movie")
@@ -138,7 +141,73 @@ open class LibraryPage(
 		grid.adapter = adapter
 		grid.setPadding(0, Ui.dp(host, 6), 0, Ui.dp(host, 60))
 		grid.layoutManager = GridLayoutManager(host, 6)
-		root.addView(grid, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+		// The grid, with the A–Z rail on its right (RIGHT from the last column goes to it, LEFT comes back).
+		val body = LinearLayout(host).apply {
+			orientation = LinearLayout.HORIZONTAL
+			clipChildren = false
+			clipToPadding = false
+		}
+		body.addView(grid, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f))
+		if (fixedFilters.isEmpty()) {
+			body.addView(buildLetterRail(), LinearLayout.LayoutParams(Ui.dp(host, 48), ViewGroup.LayoutParams.MATCH_PARENT).apply {
+				marginStart = Ui.dp(host, 8)
+				topMargin = Ui.dp(host, 4)
+				bottomMargin = Ui.dp(host, 24)
+			})
+		}
+		root.addView(body, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+	}
+
+	/** A slim A–Z rail: OK on a letter shows only titles starting with it (with the current sort and Show). */
+	private fun buildLetterRail(): View {
+		val column = LinearLayout(host).apply {
+			orientation = LinearLayout.VERTICAL
+			gravity = Gravity.CENTER_HORIZONTAL
+			setPadding(0, Ui.dp(host, 8), 0, Ui.dp(host, 8))
+			clipChildren = false
+			clipToPadding = false
+		}
+		(listOf<String?>(null, "#") + ('A'..'Z').map { it.toString() }).forEach { key ->
+			val cell = TextView(host).apply {
+				this.text = key ?: "All"
+				gravity = Gravity.CENTER
+				typeface = Ui.bold(host)
+				setTextSize(TypedValue.COMPLEX_UNIT_SP, if (key == null) 11f else 15f)
+				setTextColor(androidx.core.content.ContextCompat.getColorStateList(host, R.color.pill_text))
+				background = androidx.core.content.ContextCompat.getDrawable(host, R.drawable.bg_letter)
+				isFocusable = true
+				isClickable = true
+				contentDescription = if (key == null) "All titles" else "Titles starting with $key"
+			}
+			cell.setOnClickListener { pickLetter(key) }
+			Ui.focusScale(cell, 1.18f)
+			column.addView(cell, LinearLayout.LayoutParams(Ui.dp(host, 34), Ui.dp(host, 30)).apply { bottomMargin = Ui.dp(host, 3) })
+			letterViews[key] = cell
+		}
+		markLetter()
+		return android.widget.ScrollView(host).apply {
+			isVerticalScrollBarEnabled = false
+			isFillViewport = false
+			clipToPadding = false
+			overScrollMode = View.OVER_SCROLL_NEVER
+			background = android.graphics.drawable.GradientDrawable().apply {
+				setColor(Ui.color(host, R.attr.lumenPillIdle))
+				alpha = 170
+				cornerRadius = Ui.dp(host, 24).toFloat()
+			}
+			addView(column, android.widget.FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+		}
+	}
+
+	private fun pickLetter(key: String?) {
+		if (letter == key) return
+		letter = key
+		markLetter()
+		reload()
+	}
+
+	private fun markLetter() {
+		letterViews.forEach { (key, view) -> view.isSelected = key == letter }
 	}
 
 	override fun onShow() {
@@ -173,6 +242,8 @@ open class LibraryPage(
 		sortBy = sort.field,
 		descending = sort.descending,
 		filters = fixedFilters + listOfNotNull(filter.value),
+		nameStartsWith = letter?.takeIf { it != "#" },
+		nameLessThan = if (letter == "#") "A" else null,
 		startIndex = start,
 		limit = limit,
 	)
@@ -184,9 +255,13 @@ open class LibraryPage(
 			val page = runCatching { host.api.items(host.session, query(0, 120)) }
 			page.onSuccess {
 				adapter.replace(it.items, it.total)
-				countView.text = if (it.total > 0) "${it.total}" else ""
+				countView.text = when {
+					letter != null && it.total > 0 -> "${it.total}  ·  $letter"
+					it.total > 0 -> "${it.total}"
+					else -> letter ?: ""
+				}
 				emptyView.visibility = if (it.items.isEmpty()) View.VISIBLE else View.GONE
-				emptyView.text = "Nothing to show with these filters."
+				emptyView.text = if (letter != null) "No titles starting with ${if (letter == "#") "a number" else letter} here." else "Nothing to show with these filters."
 				grid.scrollToPosition(0)
 			}.onFailure {
 				emptyView.visibility = View.VISIBLE

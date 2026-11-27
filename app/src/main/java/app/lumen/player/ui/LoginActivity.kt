@@ -63,6 +63,17 @@ class LoginActivity : BaseActivity() {
 				loadServer()
 			}
 		}
+		// "Add server": scan a QR code and type the address on the phone (or use the remote).
+		(findViewById<View>(R.id.btn_change_server).parent as? LinearLayout)?.let { column ->
+			val add = Pills.create(column, "Add server")
+			(add.layoutParams as? LinearLayout.LayoutParams)?.topMargin = Ui.dp(this, 10)
+			add.setOnClickListener {
+				ServerPicker.add(this) { url ->
+					prefs.serverUrl = url
+					loadServer()
+				}
+			}
+		}
 		password.setOnEditorActionListener { _, actionId, _ ->
 			if (actionId == EditorInfo.IME_ACTION_DONE) {
 				signIn()

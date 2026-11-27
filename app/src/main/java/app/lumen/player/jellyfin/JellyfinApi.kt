@@ -90,6 +90,10 @@ data class ItemQuery(
 	val descending: Boolean = false,
 	val filters: List<String> = emptyList(),
 	val searchTerm: String? = null,
+	/** A–Z rail: titles whose sort name starts with this. */
+	val nameStartsWith: String? = null,
+	/** A–Z rail "#": titles whose sort name sorts before this (numbers and signs). */
+	val nameLessThan: String? = null,
 	val recursive: Boolean = true,
 	val startIndex: Int = 0,
 	val limit: Int = 100,
@@ -271,6 +275,8 @@ class JellyfinApi(private val prefs: Prefs) {
 			if (query.filters.isNotEmpty()) put("filters", query.filters.joinToString(","))
 			if (query.genres.isNotEmpty()) put("genres", query.genres.joinToString("|"))
 			query.searchTerm?.let { put("searchTerm", it) }
+			query.nameStartsWith?.let { put("nameStartsWith", it) }
+			query.nameLessThan?.let { put("nameLessThan", it) }
 			put("recursive", query.recursive.toString())
 			put("startIndex", "${query.startIndex}")
 			put("limit", "${query.limit}")

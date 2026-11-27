@@ -4,7 +4,11 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
+import android.view.Gravity
+import android.view.ViewGroup
+import android.widget.FrameLayout
 import android.widget.ImageView
+import androidx.core.content.ContextCompat
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -27,6 +31,8 @@ class DetailActivity : BaseActivity() {
 
 	companion object {
 		private const val EXTRA_ID = "item_id"
+		/** Height of the round buttons and the Play button. */
+		private const val ROUND_DP = 52
 
 		fun start(context: Context, itemId: String) {
 			context.startActivity(Intent(context, DetailActivity::class.java).putExtra(EXTRA_ID, itemId))
@@ -159,7 +165,7 @@ class DetailActivity : BaseActivity() {
 			item.runtimeMs.takeIf { it > 0 }?.let { Formatters.time(it) },
 			item.childCount.takeIf { it > 0 && item.type == "Series" }?.let { "$it seasons" },
 			endsAt,
-		).joinToString("    ·    ")
+		).joinToString("   •   ")
 		genres.text = item.genres.take(4).joinToString("  ·  ")
 		overview.text = item.overview ?: ""
 		val media = item.media
@@ -206,22 +212,26 @@ class DetailActivity : BaseActivity() {
 			label != null -> "Play $label"
 			else -> "Play"
 		}
+		// The big, filled Play button; everything else is a round icon with its name under it.
 		val play = Pills.create(actions, text.trim(), R.drawable.ic_play)
+		play.background = ContextCompat.getDrawable(this, R.drawable.bg_pill_primary)
+		play.setTextColor(ContextCompat.getColorStateList(this, R.color.pill_primary_text))
+		play.compoundDrawableTintList = ContextCompat.getColorStateList(this, R.color.pill_primary_text)
+		play.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 17f)
+		play.layoutParams = play.layoutParams.apply { height = Ui.dp(this@DetailActivity, ROUND_DP) }
+		play.setPadding(Ui.dp(this, 28), 0, Ui.dp(this, 30), 0)
+		(play.layoutParams as? ViewGroup.MarginLayoutParams)?.marginEnd = Ui.dp(this, 22)
 		play.tag = "play"
 		play.setOnClickListener { PlayerActivity.play(this, target.id, -1L, chosenMode) }
 		if (resumeMs > 0) {
-			val restart = Pills.create(actions, "Start over", R.drawable.ic_replay)
-			restart.tag = "restart"
-			restart.setOnClickListener { PlayerActivity.play(this, target.id, 0L, chosenMode) }
+			roundAction("Start over", R.drawable.ic_replay, "restart") { PlayerActivity.play(this, target.id, 0L, chosenMode) }
 		}
-		// Second line: smaller buttons for the less used choices.
-		val playerPill = Pills.compact(Pills.create(actions, playerLabel(target), R.drawable.ic_swap))
-		(playerPill.layoutParams as? FlowRow.LayoutParams)?.newLine = true
-		playerPill.tag = "player"
-		playerPill.setOnClickListener {
+		val player = roundAction(playerCaption(target), R.drawable.ic_swap, "player") {}
+		player.view.setOnClickListener {
 			val modes = listOf<PlayerMode?>(null) + PlayerMode.entries
 			chosenMode = modes[(modes.indexOf(chosenMode) + 1) % modes.size]
-			playerPill.text = playerLabel(target)
+			player.caption.text = playerCaption(target)
+			android.widget.Toast.makeText(this, playerLabel(target), android.widget.Toast.LENGTH_SHORT).show()
 		}
 	}
 
@@ -232,50 +242,91 @@ class DetailActivity : BaseActivity() {
 		return if (remembered != null) "Player: ${remembered.label} ✓" else "Player: Auto (${default.label})"
 	}
 
+	/** Short name under the player button: "Auto", "VLC", "Exo 20 Mbps"… */
+	private fun playerCaption(target: JfItem): String {
+		val mode = chosenMode ?: PlayerMode.fromName(prefs.rememberedPlayerMode(target.id, target.seriesId)) ?: return "Auto player"
+		return mode.label.replace("ExoPlayer", "Exo").replace(" · Direct", "").replace(" · ", " ")
+	}
+
+	/** A round button with an icon and its name underneath (title page). */
+	private class RoundAction(val view: View, val icon: ImageView, val caption: TextView)
+
+	private fun roundAction(caption: String, icon: Int, tag: String, onClick: () -> Unit): RoundAction {
+		val box = LinearLayout(this).apply {
+			orientation = LinearLayout.VERTICAL
+			gravity = Gravity.CENTER_HORIZONTAL
+			isFocusable = true
+			isClickable = true
+			this.tag = tag
+			contentDescription = caption
+			minimumWidth = Ui.dp(this@DetailActivity, 76)
+		}
+		val circle = FrameLayout(this).apply {
+			background = ContextCompat.getDrawable(this@DetailActivity, R.drawable.bg_round_action)
+			isDuplicateParentStateEnabled = true
+		}
+		val image = ImageView(this).apply {
+			setImageResource(icon)
+			imageTintList = ContextCompat.getColorStateList(this@DetailActivity, R.color.pill_text)
+			isDuplicateParentStateEnabled = true
+		}
+		circle.addView(image, FrameLayout.LayoutParams(Ui.dp(this, 24), Ui.dp(this, 24), Gravity.CENTER))
+		box.addView(circle, LinearLayout.LayoutParams(Ui.dp(this, ROUND_DP), Ui.dp(this, ROUND_DP)))
+		val label = TextView(this).apply {
+			this.text = caption
+			maxLines = 1
+			ellipsize = android.text.TextUtils.TruncateAt.END
+			maxWidth = Ui.dp(this@DetailActivity, 110)
+			typeface = Ui.bold(this@DetailActivity)
+			setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 12.5f)
+			setTextColor(ContextCompat.getColorStateList(this@DetailActivity, R.color.round_caption))
+			isDuplicateParentStateEnabled = true
+			setPadding(0, Ui.dp(this@DetailActivity, 6), 0, 0)
+		}
+		box.addView(label)
+		box.setOnClickListener { onClick() }
+		Ui.focusScale(box, 1.1f)
+		actions.addView(box, FlowRow.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+			marginEnd = Ui.dp(this@DetailActivity, 6)
+		})
+		return RoundAction(box, image, label)
+	}
+
 	private fun addCommonButtons(item: JfItem) {
 		val played = item.userData?.played == true
-		// Without play buttons (e.g. a show still loading) these are the only line, at full size.
-		val small = actions.childCount > 0
-		fun pill(text: String, icon: Int) = Pills.create(actions, text, icon).also { if (small) Pills.compact(it) }
-		val watched = pill(if (played) "Watched" else "Mark watched", R.drawable.ic_check_circle)
-		watched.tag = "watched"
-		watched.isSelected = played
-		watched.setOnClickListener {
+		val watched = roundAction(if (played) "Watched" else "Mark watched", R.drawable.ic_check_circle, "watched") {
 			lifecycleScope.launch {
 				val now = !(this@DetailActivity.item?.userData?.played ?: false)
 				runCatching { api.setPlayed(session, item.id, now) }
 					.onSuccess { load(firstTime = false) }
 			}
 		}
+		watched.view.isSelected = played
 		val favorite = item.userData?.favorite == true
-		val heart = pill(if (favorite) "Favorite" else "Favorite +", if (favorite) R.drawable.ic_favorite else R.drawable.ic_favorite_border)
-		heart.tag = "favorite"
-		heart.isSelected = favorite
-		heart.setOnClickListener {
+		val heart = roundAction(if (favorite) "Favorite" else "Add to favorites", if (favorite) R.drawable.ic_favorite else R.drawable.ic_favorite_border, "favorite") {
 			lifecycleScope.launch {
 				val now = !(this@DetailActivity.item?.userData?.favorite ?: false)
 				runCatching { api.setFavorite(session, item.id, now) }
 					.onSuccess { load(firstTime = false) }
 			}
 		}
+		heart.view.isSelected = favorite
 		// Follow a show: its new episodes come first on Home ("New episodes for you").
 		val followId = if (item.type == "Series") item.id else item.seriesId?.takeIf { item.type == "Season" || item.type == "Episode" }
 		if (followId != null) {
 			fun trackLabel(): String = when {
-				!prefs.isTracked(followId) -> "Track"
+				!prefs.isTracked(followId) -> "Track show"
 				followId !in prefs.trackedSeries -> "Tracking (auto)"
 				else -> "Tracking"
 			}
-			val track = pill(trackLabel(), if (prefs.isTracked(followId)) R.drawable.ic_check_circle else R.drawable.ic_event)
-			track.tag = "track"
-			track.isSelected = prefs.isTracked(followId)
-			track.setOnClickListener {
+			val track = roundAction(trackLabel(), if (prefs.isTracked(followId)) R.drawable.ic_check_circle else R.drawable.ic_event, "track") {}
+			track.view.isSelected = prefs.isTracked(followId)
+			track.view.setOnClickListener {
 				val now = !prefs.isTracked(followId)
 				prefs.setTracked(followId, now)
-				track.text = trackLabel()
-				track.isSelected = now
-				Pills.setIcon(track, if (now) R.drawable.ic_check_circle else R.drawable.ic_event)
-				if (small) Pills.compact(track)
+				track.caption.text = trackLabel()
+				track.view.isSelected = now
+				track.icon.setImageResource(if (now) R.drawable.ic_check_circle else R.drawable.ic_event)
 				android.widget.Toast.makeText(
 					this,
 					if (now) "New episodes of this show will show up first on Home" else "Not tracking this show any more",
@@ -284,9 +335,7 @@ class DetailActivity : BaseActivity() {
 			}
 		}
 		if (item.type == "Episode" && item.seriesId != null) {
-			val series = pill("Series", R.drawable.ic_tv)
-			series.tag = "series"
-			series.setOnClickListener { start(this, item.seriesId) }
+			roundAction("Go to show", R.drawable.ic_tv, "series") { start(this, item.seriesId) }
 		}
 	}
 
